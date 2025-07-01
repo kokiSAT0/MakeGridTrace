@@ -4,10 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import logging
+import time
 from pathlib import Path
 import json
 import random
 from typing import Any, Dict, List
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -157,10 +166,21 @@ def generate_puzzle(
     if seed is not None:
         random.seed(seed)
 
+    start_time = time.perf_counter()
+    logger.info("盤面生成開始: %dx%d difficulty=%s", rows, cols, difficulty)
+
     size = PuzzleSize(rows=rows, cols=cols)
+    step_time = time.perf_counter()
     edges = _create_empty_edges(size)
+    logger.info("空の盤面作成: %.3f 秒", time.perf_counter() - step_time)
+
+    step_time = time.perf_counter()
     _generate_random_loop(edges, size)
+    logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - step_time)
+
+    step_time = time.perf_counter()
     clues = _calculate_clues(edges, size)
+    logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     puzzle: Puzzle = {
@@ -172,8 +192,11 @@ def generate_puzzle(
         "createdBy": "auto-gen-v1",
         "createdAt": datetime.utcnow().date().isoformat(),
     }
+    step_time = time.perf_counter()
     # 生成した結果が仕様を満たすか簡易チェック
     validate_puzzle(puzzle)
+    logger.info("検証完了: %.3f 秒", time.perf_counter() - step_time)
+    logger.info("盤面生成終了: %.3f 秒", time.perf_counter() - start_time)
     return puzzle
 
 
@@ -191,6 +214,7 @@ def save_puzzle(puzzle: Puzzle, directory: str | Path = "data") -> Path:
     file_path = path / "map_gridtrace.json"
     with file_path.open("w", encoding="utf-8") as fp:
         json.dump(puzzle, fp, ensure_ascii=False, indent=2)
+    logger.info("パズルを保存しました: %s", file_path)
     return file_path
 
 
@@ -208,6 +232,14 @@ def generate_multiple_puzzles(
     if count_each <= 0:
         raise ValueError("count_each は 1 以上を指定してください")
 
+    logger.info(
+        "複数盤面生成開始 rows=%d cols=%d count_each=%d",
+        rows,
+        cols,
+        count_each,
+    )
+    start_time = time.perf_counter()
+
     puzzles: List[Puzzle] = []
     seed_offset = 0
     # 難易度の順序を固定するためリスト化
@@ -218,6 +250,8 @@ def generate_multiple_puzzles(
                 generate_puzzle(rows, cols, difficulty=difficulty, seed=puzzle_seed)
             )
             seed_offset += 1
+
+    logger.info("複数盤面生成終了: %.3f 秒", time.perf_counter() - start_time)
     return puzzles
 
 
@@ -229,6 +263,7 @@ def save_puzzles(puzzles: List[Puzzle], directory: str | Path = "data") -> Path:
     file_path = path / "map_gridtrace.json"
     with file_path.open("w", encoding="utf-8") as fp:
         json.dump(puzzles, fp, ensure_ascii=False, indent=2)
+    logger.info("複数パズルを保存しました: %s", file_path)
     return file_path
 
 
