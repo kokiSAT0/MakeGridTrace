@@ -39,8 +39,18 @@ def test_validate_puzzle() -> None:
 
 def test_validate_puzzle_fail() -> None:
     puzzle = generator.generate_puzzle(4, 4)
-    # ループの一部を壊して検証エラーを期待
-    puzzle["solutionEdges"]["horizontal"][0][0] = False
+    # ループに含まれる辺を一つ壊して検証エラーを期待
+    broken = False
+    for r, row in enumerate(puzzle["solutionEdges"]["horizontal"]):
+        for c, val in enumerate(row):
+            if val:
+                puzzle["solutionEdges"]["horizontal"][r][c] = False
+                broken = True
+                break
+        if broken:
+            break
+    if not broken:
+        puzzle["solutionEdges"]["vertical"][0][0] = False
     with pytest.raises(ValueError):
         generator.validate_puzzle(puzzle)
 
