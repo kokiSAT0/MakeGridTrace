@@ -43,3 +43,12 @@ def test_validate_puzzle_fail() -> None:
     puzzle["solutionEdges"]["horizontal"][0][0] = False
     with pytest.raises(ValueError):
         generator.validate_puzzle(puzzle)
+
+
+def test_generate_multiple_and_save(tmp_path: Path) -> None:
+    puzzles = generator.generate_multiple_puzzles(3, 3, count_each=1)
+    assert len(puzzles) == 4
+    path = generator.save_puzzles(puzzles, directory=tmp_path)
+    assert path.exists()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert len(data) == 4

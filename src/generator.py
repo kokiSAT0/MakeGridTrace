@@ -115,6 +115,44 @@ def save_puzzle(puzzle: Puzzle, directory: str | Path = "data") -> Path:
     return file_path
 
 
+def generate_multiple_puzzles(
+    rows: int, cols: int, count_each: int, *, seed: int | None = None
+) -> List[Puzzle]:
+    """各難易度を同数生成して一覧で返す
+
+    :param rows: 盤面の行数
+    :param cols: 盤面の列数
+    :param count_each: 各難易度の生成数
+    :param seed: 乱数シード。再現したいときに指定する
+    """
+
+    if count_each <= 0:
+        raise ValueError("count_each は 1 以上を指定してください")
+
+    puzzles: List[Puzzle] = []
+    seed_offset = 0
+    # 難易度の順序を固定するためリスト化
+    for difficulty in sorted(ALLOWED_DIFFICULTIES):
+        for _ in range(count_each):
+            puzzle_seed = None if seed is None else seed + seed_offset
+            puzzles.append(
+                generate_puzzle(rows, cols, difficulty=difficulty, seed=puzzle_seed)
+            )
+            seed_offset += 1
+    return puzzles
+
+
+def save_puzzles(puzzles: List[Puzzle], directory: str | Path = "data") -> Path:
+    """複数のパズルをひとつの JSON ファイルに保存する"""
+
+    path = Path(directory)
+    path.mkdir(parents=True, exist_ok=True)
+    file_path = path / "map_gridtrace.json"
+    with file_path.open("w", encoding="utf-8") as fp:
+        json.dump(puzzles, fp, ensure_ascii=False, indent=2)
+    return file_path
+
+
 def validate_puzzle(puzzle: Puzzle) -> None:
     """パズルデータの整合性を簡易チェックする関数"""
 

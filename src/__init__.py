@@ -1,5 +1,17 @@
 """generator モジュールの公開関数をまとめる"""
 
-from .generator import generate_puzzle, save_puzzle, validate_puzzle
+from .generator import (
+    generate_puzzle,
+    save_puzzle,
+    validate_puzzle,
+    generate_multiple_puzzles,
+    save_puzzles,
+)
 
-__all__ = ["generate_puzzle", "save_puzzle", "validate_puzzle"]
+__all__ = [
+    "generate_puzzle",
+    "save_puzzle",
+    "validate_puzzle",
+    "generate_multiple_puzzles",
+    "save_puzzles",
+]
