@@ -107,8 +107,9 @@ def save_puzzle(puzzle: Puzzle, directory: str | Path = "data") -> Path:
     """
     path = Path(directory)
     path.mkdir(parents=True, exist_ok=True)
-    fname = f"{puzzle['id']}.json"
-    file_path = path / fname
+    # 出力ファイル名は常に map_gridtrace.json とする
+    # 複数生成する場合はディレクトリを変えるなどで調整する想定
+    file_path = path / "map_gridtrace.json"
     with file_path.open("w", encoding="utf-8") as fp:
         json.dump(puzzle, fp, ensure_ascii=False, indent=2)
     return file_path
