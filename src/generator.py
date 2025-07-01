@@ -149,6 +149,193 @@ def _calculate_clues(
 ALLOWED_DIFFICULTIES = {"easy", "normal", "hard", "expert"}
 
 
+# difficulty ごとの最小ヒント比率。盤面のセル数に掛けて下限ヒント数を求める
+MIN_HINT_RATIO = {
+    "easy": 0.3,
+    "normal": 0.2,
+    "hard": 0.15,
+    "expert": 0.1,
+}
+
+
+def _evaluate_difficulty(clues: List[List[int | None]], size: PuzzleSize) -> str:
+    """ヒント密度から単純に難易度を推定する"""
+
+    hint_count = sum(1 for row in clues for v in row if v is not None)
+    ratio = hint_count / (size.rows * size.cols)
+    if ratio >= 0.3:
+        return "easy"
+    if ratio >= 0.2:
+        return "normal"
+    if ratio >= 0.15:
+        return "hard"
+    return "expert"
+
+
+def _count_solutions(
+    clues: List[List[int | None]], size: PuzzleSize, *, limit: int = 2
+) -> int:
+    """バックトラックで解の個数を数える簡易ソルバー"""
+
+    # 辺リストとセル・頂点の参照テーブルを構築
+    edges_list: list[tuple[str, int, int]] = []
+    cell_edges: list[list[list[int]]] = [
+        [[] for _ in range(size.cols)] for _ in range(size.rows)
+    ]
+    vertex_edges: list[list[list[int]]] = [
+        [[] for _ in range(size.cols + 1)] for _ in range(size.rows + 1)
+    ]
+
+    def add_edge(t: str, r: int, c: int) -> None:
+        idx = len(edges_list)
+        edges_list.append((t, r, c))
+        if t == "h":
+            v1 = (r, c)
+            v2 = (r, c + 1)
+            if r < size.rows:
+                cell_edges[r][c].append(idx)
+            if r > 0:
+                cell_edges[r - 1][c].append(idx)
+        else:
+            v1 = (r, c)
+            v2 = (r + 1, c)
+            if c < size.cols:
+                cell_edges[r][c].append(idx)
+            if c > 0:
+                cell_edges[r][c - 1].append(idx)
+        vertex_edges[v1[0]][v1[1]].append(idx)
+        vertex_edges[v2[0]][v2[1]].append(idx)
+
+    for r in range(size.rows + 1):
+        for c in range(size.cols):
+            add_edge("h", r, c)
+    for r in range(size.rows):
+        for c in range(size.cols + 1):
+            add_edge("v", r, c)
+
+    n = len(edges_list)
+    edge_state = [False] * n
+    vertex_degree = [[0 for _ in range(size.cols + 1)] for _ in range(size.rows + 1)]
+    cell_count = [[0 for _ in range(size.cols)] for _ in range(size.rows)]
+    cell_unknown = [[4 for _ in range(size.cols)] for _ in range(size.rows)]
+
+    solutions = 0
+
+    def dfs(idx: int) -> None:
+        nonlocal solutions
+        if solutions >= limit:
+            return
+        if idx == n:
+            # すべて決めたので条件を確認
+            for r in range(size.rows + 1):
+                for c in range(size.cols + 1):
+                    if vertex_degree[r][c] not in (0, 2):
+                        return
+            for r in range(size.rows):
+                for c in range(size.cols):
+                    clue = clues[r][c]
+                    if clue is not None and cell_count[r][c] != clue:
+                        return
+
+            horizontal = [
+                [False for _ in range(size.cols)] for _ in range(size.rows + 1)
+            ]
+            vertical = [[False for _ in range(size.cols + 1)] for _ in range(size.rows)]
+            for i, (t, r, c) in enumerate(edges_list):
+                if not edge_state[i]:
+                    continue
+                if t == "h":
+                    horizontal[r][c] = True
+                else:
+                    vertical[r][c] = True
+            puzzle = {
+                "size": {"rows": size.rows, "cols": size.cols},
+                "solutionEdges": {"horizontal": horizontal, "vertical": vertical},
+                "clues": clues,
+            }
+            try:
+                validate_puzzle(puzzle)
+            except ValueError:
+                return
+            solutions += 1
+            return
+
+        t, r, c = edges_list[idx]
+        for val in (False, True):
+            edge_state[idx] = val
+            vertices = [(r, c), (r, c + 1)] if t == "h" else [(r, c), (r + 1, c)]
+            cells = []
+            if t == "h":
+                if r < size.rows:
+                    cells.append((r, c))
+                if r > 0:
+                    cells.append((r - 1, c))
+            else:
+                if c < size.cols:
+                    cells.append((r, c))
+                if c > 0:
+                    cells.append((r, c - 1))
+
+            for vr, vc in vertices:
+                vertex_degree[vr][vc] += int(val)
+
+            for cr, cc in cells:
+                cell_unknown[cr][cc] -= 1
+                if val:
+                    cell_count[cr][cc] += 1
+
+            # 部分的な矛盾がないか確認
+            ok = True
+            for vr, vc in vertices:
+                if vertex_degree[vr][vc] > 2:
+                    ok = False
+                    break
+            if ok:
+                for cr, cc in cells:
+                    clue = clues[cr][cc]
+                    if clue is None:
+                        continue
+                    used = cell_count[cr][cc]
+                    unknown = cell_unknown[cr][cc]
+                    if used > clue or used + unknown < clue:
+                        ok = False
+                        break
+            if ok:
+                dfs(idx + 1)
+
+            for vr, vc in vertices:
+                vertex_degree[vr][vc] -= int(val)
+            for cr, cc in cells:
+                if val:
+                    cell_count[cr][cc] -= 1
+                cell_unknown[cr][cc] += 1
+        edge_state[idx] = False
+
+    dfs(0)
+    return solutions
+
+
+def _reduce_clues(
+    clues: List[List[int]], size: PuzzleSize, *, min_hint: int
+) -> List[List[int | None]]:
+    """ヒントをランダムに削減して一意性を保つ"""
+
+    result = [[v for v in row] for row in clues]
+    cells = [(r, c) for r in range(size.rows) for c in range(size.cols)]
+    random.shuffle(cells)
+
+    for r, c in cells:
+        if result[r][c] is None:
+            continue
+        original = result[r][c]
+        result[r][c] = None
+        hint_count = sum(1 for row in result for v in row if v is not None)
+        if hint_count < min_hint or _count_solutions(result, size, limit=2) != 1:
+            result[r][c] = original
+
+    return result
+
+
 def generate_puzzle(
     rows: int, cols: int, difficulty: str = "normal", *, seed: int | None = None
 ) -> Puzzle:
@@ -182,6 +369,15 @@ def generate_puzzle(
     clues = _calculate_clues(edges, size)
     logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
 
+    # 難易度毎の最小ヒント数を算出しヒントを削減
+    min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
+    clues = _reduce_clues(clues, size, min_hint=min_hint)
+
+    # 削減後のヒントで解が一意か確認
+    if _count_solutions(clues, size, limit=2) != 1:
+        logger.warning("一意性を確認できなかったためヒントを再計算します")
+        clues = _calculate_clues(edges, size)
+
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     puzzle: Puzzle = {
         "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
@@ -189,6 +385,7 @@ def generate_puzzle(
         "clues": clues,
         "solutionEdges": edges,
         "difficulty": difficulty,
+        "difficultyEval": _evaluate_difficulty(clues, size),
         "createdBy": "auto-gen-v1",
         "createdAt": datetime.utcnow().date().isoformat(),
     }
