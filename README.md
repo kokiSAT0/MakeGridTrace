@@ -1,6 +1,6 @@
 # マップ作成手順
 
-このリポジトリでは、スリザーリンク用のマップ（問題データ）を自動生成するための Python スクリプトを提供しています。プログラミング初心者の方向けに、専門用語にも簡単な補足を付けながら手順をまとめます。
+このリポジトリではスリザーリンク用のマップ（問題データ）を自動生成する Python スクリプトを提供しています。ここではスクリプトの実行方法を中心に手順を簡潔にまとめます。関数の詳細な仕様は各ファイルのコメントを参照してください。
 
 ## 1. 事前準備
 
@@ -19,19 +19,30 @@
    - `pip` は Python の追加ライブラリをインストールするコマンドです。
    - `requirements.txt` には必要なライブラリ名が列挙されています。
 
-## 2. マップを生成する
+## 2. 使い方
 
-1. `src/generator.py` の `generate_puzzle` 関数を使ってマップを生成します。
-   - **関数**とは、何らかの処理をまとめたものです。必要な値（引数）を渡すと結果が返ってきます。
-   - 例：行数と列数を指定して 4×4 のマップを作る
-     ```python
-     from src import generator
+### Python から呼び出す
 
-     puzzle = generator.generate_puzzle(4, 4, difficulty="easy")
-     ```
-   - `difficulty` は難易度ラベルで、`"easy"`, `"normal"`, `"hard"`, `"expert"` から選びます。
+`src/generator.py` の `generate_puzzle` 関数でマップを作成します。必要な引数は行数 `rows`、列数 `cols`、難易度 `difficulty` です。
 
-2. 生成されたマップは Python の辞書型（`dict`）として取得できます。辞書型は「キーと値」をセットで保持するデータ形式です。
+```python
+from src import generator
+
+puzzle = generator.generate_puzzle(4, 4, difficulty="easy")
+```
+
+- `rows` と `cols` は盤面サイズ。
+- `difficulty` は `"easy"` / `"normal"` / `"hard"` / `"expert"` から選択。
+
+生成結果は Python の辞書型（`dict`）として得られます。
+
+### スクリプトとして実行する
+
+`generator.py` は直接実行することも可能です。以下のようにコマンドラインから実行すると、サンプルのパズルが `data/` に保存されます。
+
+```bash
+python src/generator.py
+```
 
 ## 3. マップを保存する
 

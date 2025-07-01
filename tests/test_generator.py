@@ -4,7 +4,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
-from src import generator
+from src import generator  # noqa: E402
 
 
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
