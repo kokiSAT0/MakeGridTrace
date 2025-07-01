@@ -6,6 +6,7 @@ from .generator import (
     validate_puzzle,
     generate_multiple_puzzles,
     save_puzzles,
+    puzzle_to_ascii,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "validate_puzzle",
     "generate_multiple_puzzles",
     "save_puzzles",
+    "puzzle_to_ascii",
 ]

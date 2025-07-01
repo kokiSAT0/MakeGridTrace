@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from .generator import generate_multiple_puzzles, save_puzzles
+from .generator import generate_multiple_puzzles, save_puzzles, puzzle_to_ascii
 
 
 # コマンドラインから実行される関数
@@ -24,6 +24,10 @@ def main() -> None:
     puzzles = generate_multiple_puzzles(args.rows, args.cols, args.count_each)
     path = save_puzzles(puzzles)
     print(f"{path} を作成しました")
+    # 生成した各パズルを ASCII で表示
+    for pzl in puzzles:
+        print(f"--- {pzl['difficulty']} ---")
+        print(puzzle_to_ascii(pzl))
 
 
 if __name__ == "__main__":
