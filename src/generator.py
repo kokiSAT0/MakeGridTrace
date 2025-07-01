@@ -28,16 +28,92 @@ def _create_empty_edges(size: PuzzleSize) -> Dict[str, List[List[bool]]]:
     return {"horizontal": horizontal, "vertical": vertical}
 
 
-def _add_outer_loop(edges: Dict[str, List[List[bool]]], size: PuzzleSize) -> None:
-    """盤面外周に沿った単純なループを追加する"""
-    # 上辺と下辺
-    for c in range(size.cols):
-        edges["horizontal"][0][c] = True
-        edges["horizontal"][size.rows][c] = True
-    # 左辺と右辺
-    for r in range(size.rows):
-        edges["vertical"][r][0] = True
-        edges["vertical"][r][size.cols] = True
+def _generate_random_loop(edges: Dict[str, List[List[bool]]], size: PuzzleSize) -> None:
+    """外周だけではないランダムなループを生成する"""
+
+    # 頂点ごとの接続数を管理する配列
+    degrees = [[0 for _ in range(size.cols + 1)] for _ in range(size.rows + 1)]
+
+    def edge_exists(a: tuple[int, int], b: tuple[int, int]) -> bool:
+        """2点間の辺がすでに存在するか判定"""
+        if a[0] == b[0]:
+            r = a[0]
+            c = min(a[1], b[1])
+            return edges["horizontal"][r][c]
+        else:
+            c = a[1]
+            r = min(a[0], b[0])
+            return edges["vertical"][r][c]
+
+    def add_edge(a: tuple[int, int], b: tuple[int, int]) -> None:
+        """2点を結ぶ辺を追加する"""
+        if a[0] == b[0]:
+            r = a[0]
+            c = min(a[1], b[1])
+            edges["horizontal"][r][c] = True
+        else:
+            c = a[1]
+            r = min(a[0], b[0])
+            edges["vertical"][r][c] = True
+        degrees[a[0]][a[1]] += 1
+        degrees[b[0]][b[1]] += 1
+
+    def remove_edge(a: tuple[int, int], b: tuple[int, int]) -> None:
+        """2点を結ぶ辺を削除する"""
+        if a[0] == b[0]:
+            r = a[0]
+            c = min(a[1], b[1])
+            edges["horizontal"][r][c] = False
+        else:
+            c = a[1]
+            r = min(a[0], b[0])
+            edges["vertical"][r][c] = False
+        degrees[a[0]][a[1]] -= 1
+        degrees[b[0]][b[1]] -= 1
+
+    # 目標ループ長は盤面周長の 75% 以上とする
+    min_len = max(int(0.75 * 2 * (size.rows + size.cols)), 4)
+
+    # バックトラックでランダムなループを構築する
+    start = (random.randint(0, size.rows), random.randint(0, size.cols))
+    path: list[tuple[int, int]] = [start]
+
+    def dfs(current: tuple[int, int]) -> bool:
+        if len(path) >= min_len and current == start and len(path) > 1:
+            return True
+
+        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+        random.shuffle(directions)
+        for dr, dc in directions:
+            nr, nc = current[0] + dr, current[1] + dc
+            if not (0 <= nr <= size.rows and 0 <= nc <= size.cols):
+                continue
+            nxt = (nr, nc)
+            if degrees[nr][nc] >= 2 or degrees[current[0]][current[1]] >= 2:
+                continue
+            if edge_exists(current, nxt):
+                continue
+            # スタート地点に戻る場合は最小長さを満たすか確認
+            if nxt == start and len(path) + 1 < min_len:
+                continue
+
+            add_edge(current, nxt)
+            path.append(nxt)
+            if dfs(nxt):
+                return True
+            # 戻る処理
+            path.pop()
+            remove_edge(current, nxt)
+        return False
+
+    if not dfs(start):
+        # 失敗したら外周ループを生成してお茶を濁す
+        for c in range(size.cols):
+            edges["horizontal"][0][c] = True
+            edges["horizontal"][size.rows][c] = True
+        for r in range(size.rows):
+            edges["vertical"][r][0] = True
+            edges["vertical"][r][size.cols] = True
 
 
 def _calculate_clues(
@@ -82,7 +158,7 @@ def generate_puzzle(
 
     size = PuzzleSize(rows=rows, cols=cols)
     edges = _create_empty_edges(size)
-    _add_outer_loop(edges, size)
+    _generate_random_loop(edges, size)
     clues = _calculate_clues(edges, size)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
@@ -95,6 +171,8 @@ def generate_puzzle(
         "createdBy": "auto-gen-v1",
         "createdAt": datetime.utcnow().date().isoformat(),
     }
+    # 生成した結果が仕様を満たすか簡易チェック
+    validate_puzzle(puzzle)
     return puzzle
 
 
