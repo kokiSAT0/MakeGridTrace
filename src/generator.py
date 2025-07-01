@@ -71,8 +71,9 @@ def _generate_random_loop(edges: Dict[str, List[List[bool]]], size: PuzzleSize) 
         degrees[a[0]][a[1]] -= 1
         degrees[b[0]][b[1]] -= 1
 
-    # 目標ループ長は盤面周長の 75% 以上とする
-    min_len = max(int(0.75 * 2 * (size.rows + size.cols)), 4)
+    # 目標ループ長はハード制約 H-7 に従い盤面周長の 2 倍以上とする
+    # 盤面周長とは rows + cols を 2 倍した数で、外周を一周する長さを指す
+    min_len = max(2 * (size.rows + size.cols), 4)
 
     # バックトラックでランダムなループを構築する
     start = (random.randint(0, size.rows), random.randint(0, size.cols))
@@ -322,6 +323,11 @@ def validate_puzzle(puzzle: Puzzle) -> None:
 
     if len(visited_edges) != edge_count:
         raise ValueError("ループが複数存在する可能性があります")
+
+    # ハード制約 H-7: ループ長下限チェック
+    # 辺の数が 2 * (rows + cols) 未満なら盤面外周だけをなぞる短すぎるループとみなす
+    if edge_count < 2 * (size.rows + size.cols):
+        raise ValueError("ループ長がハード制約を満たしていません")
 
     # ヒント数字の整合をチェック
     clues = puzzle.get("clues")
