@@ -254,8 +254,44 @@ def validate_puzzle(puzzle: Puzzle) -> None:
         raise ValueError("clues が solutionEdges と一致しません")
 
 
+def puzzle_to_ascii(puzzle: Puzzle) -> str:
+    """パズル情報から ASCII 形式の盤面を生成して文字列で返す"""
+
+    size_dict = puzzle["size"]
+    size = PuzzleSize(rows=size_dict["rows"], cols=size_dict["cols"])
+    clues: List[List[int]] = puzzle["clues"]
+    edges = puzzle["solutionEdges"]
+    horizontal: List[List[bool]] = edges["horizontal"]
+    vertical: List[List[bool]] = edges["vertical"]
+
+    lines: List[str] = []
+    for r in range(size.rows * 2 + 1):
+        if r % 2 == 0:
+            # 頂点行。水平線を描画する
+            row_idx = r // 2
+            line = ""
+            for c in range(size.cols):
+                line += "+"
+                line += "---" if horizontal[row_idx][c] else "   "
+            line += "+"
+            lines.append(line)
+        else:
+            # 数字行。縦線とヒント数字を描画する
+            row_idx = r // 2
+            line = ""
+            for c in range(size.cols + 1):
+                line += "|" if vertical[row_idx][c] else " "
+                if c < size.cols:
+                    line += f" {clues[row_idx][c]} "
+            lines.append(line)
+
+    return "\n".join(lines)
+
+
 if __name__ == "__main__":
     # 実行例：生成したパズルを保存
     pzl = generate_puzzle(4, 4, difficulty="easy")
     path = save_puzzle(pzl)
     print(f"{path} を作成しました")
+    # 生成した盤面を ASCII で表示
+    print(puzzle_to_ascii(pzl))

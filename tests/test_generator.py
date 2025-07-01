@@ -52,3 +52,14 @@ def test_generate_multiple_and_save(tmp_path: Path) -> None:
     assert path.exists()
     data = json.loads(path.read_text(encoding="utf-8"))
     assert len(data) == 4
+
+
+def test_puzzle_to_ascii() -> None:
+    puzzle = generator.generate_puzzle(2, 2, difficulty="easy")
+    ascii_art = generator.puzzle_to_ascii(puzzle)
+    assert isinstance(ascii_art, str)
+    lines = ascii_art.splitlines()
+    # 2x2 の場合は行数が 5 になるはず
+    assert len(lines) == 5
+    # 1 行目には "+" 記号が含まれる
+    assert "+" in lines[0]
