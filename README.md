@@ -44,6 +44,16 @@ puzzle = generator.generate_puzzle(4, 4, difficulty="easy")
 python src/generator.py
 ```
 
+### 複数の難易度をまとめて生成する
+
+`bulk_generator.py` を使うと、4 種類の難易度を同数生成して一つの JSON ファイルに保存できます。
+
+```bash
+python src/bulk_generator.py 4 4 2
+```
+
+1 番目と 2 番目の引数は盤面の行数と列数、3 番目の引数は各難易度で何問生成するかを指定します。出力は `data/map_gridtrace.json` に保存されます。
+
 ## 3. マップを保存する
 
 1. `save_puzzle` 関数を使うと、生成したマップを JSON ファイルとして保存できます。
