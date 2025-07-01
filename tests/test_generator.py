@@ -18,3 +18,12 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
     file.write_text(data, encoding="utf-8")
     loaded = json.loads(file.read_text(encoding="utf-8"))
     assert loaded["size"] == {"rows": 4, "cols": 4}
+    assert loaded["difficulty"] == "normal"
+
+
+def test_save_puzzle(tmp_path: Path) -> None:
+    puzzle = generator.generate_puzzle(4, 4, difficulty="easy")
+    path = generator.save_puzzle(puzzle, directory=tmp_path)
+    assert path.exists()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["id"].startswith("sl_4x4_easy_")
