@@ -42,7 +42,7 @@ def generate_puzzle(rows: int, cols: int, difficulty: str = "normal", *, seed: i
 
 ### 3.2 成果物
 
-- 返値は **dict** —> JSON ダンプして保存（ファイル命名規則 `sl_<行>x<列>_<difficulty>_<timestamp>.json` 推奨）
+- 返値は **dict** —> JSON ダンプして保存（ファイル名は `map_gridtrace.json` に固定）
 - `stdout` へログレベル INFO 以上を出力し、生成状況をレポート（サイズ、難易度、検証統計など）
 
 ---

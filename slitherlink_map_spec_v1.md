@@ -116,9 +116,8 @@
    - すべての数字マスがヒント条件を満たす（0–3）  
 3. **難易度タグ**  
    - 主観で良いが、後から一括変更しやすいよう統一語彙を使用  
-4. **ファイル命名規則**（推奨）  
-   - `sl_<行>x<列>_<difficulty>_<連番>.json`  
-     - 例 : `sl_4x4_easy_001.json`  
+4. **ファイル名**
+  - `map_gridtrace.json` に統一する
 5. **レビュー手順**  
    1. JSON Linter で構文チェック  
    2. 内部ツールで自動パズル検証（ヒント整合 & ループ検証）  
@@ -139,7 +138,7 @@
 ## 8. 参考実装スニペット（抜粋・JavaScript）
 
 ```js
-import puzzleData from './sl_4x4_easy_001.json' assert { type: 'json' };
+import puzzleData from './map_gridtrace.json' assert { type: 'json' };
 
 const { size, clues, solutionEdges } = puzzleData;
 

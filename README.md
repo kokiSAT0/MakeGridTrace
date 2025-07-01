@@ -52,7 +52,7 @@ python src/generator.py
    path = generator.save_puzzle(puzzle)
    print(f"{path} を作成しました")
    ```
-2. デフォルトでは `data/` ディレクトリに `sl_<行>x<列>_<difficulty>_<timestamp>.json` の形式で保存されます。
+2. デフォルトでは `data/` ディレクトリに `map_gridtrace.json` という名前で保存されます。
 
 ## 4. JSON フォーマットについて
 
