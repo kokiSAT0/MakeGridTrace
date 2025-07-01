@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import sys
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
@@ -27,3 +28,17 @@ def test_save_puzzle(tmp_path: Path) -> None:
     assert path.exists()
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["id"].startswith("sl_4x4_easy_")
+
+
+def test_validate_puzzle() -> None:
+    puzzle = generator.generate_puzzle(4, 4)
+    # エラーが出ないことを確認
+    generator.validate_puzzle(puzzle)
+
+
+def test_validate_puzzle_fail() -> None:
+    puzzle = generator.generate_puzzle(4, 4)
+    # ループの一部を壊して検証エラーを期待
+    puzzle["solutionEdges"]["horizontal"][0][0] = False
+    with pytest.raises(ValueError):
+        generator.validate_puzzle(puzzle)
