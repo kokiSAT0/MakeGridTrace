@@ -49,7 +49,8 @@ python src/generator.py
 `bulk_generator.py` を使うと、4 種類の難易度を同数生成して一つの JSON ファイルに保存できます。
 
 ```bash
-python src/bulk_generator.py 4 4 2
+# 相対インポートを使っているため `-m` オプションでモジュールとして実行する
+python -m src.bulk_generator 4 4 2
 ```
 
 1 番目と 2 番目の引数は盤面の行数と列数、3 番目の引数は各難易度で何問生成するかを指定します。出力は `data/map_gridtrace.json` に保存されます。
