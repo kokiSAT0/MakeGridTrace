@@ -86,7 +86,7 @@ pytest
 
 ## 6. 参考資料
 
-- 盤面生成の仕様書: `MakeGridTraceSPEC.md`
+- 盤面生成の仕様書: `MakeGridTraceSPECnew.md`
 - JSON フォーマット仕様: `slitherlink_map_spec_v1.md`
 
 以上で基本的なマップ作成の流れは完了です。分からない用語が出てきたら、コメントや仕様書を参照しながら少しずつ理解を深めてみてください。
