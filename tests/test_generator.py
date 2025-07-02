@@ -6,6 +6,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
 from src import generator  # noqa: E402
+from src import solver  # noqa: E402
 
 
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
@@ -21,9 +22,7 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
     assert "solverStats" in puzzle
     assert puzzle["solverStats"]["steps"] >= 0
     assert puzzle["solverStats"]["maxDepth"] >= 0
-    calc = generator._calculate_clues(
-        puzzle["solutionEdges"], generator.PuzzleSize(4, 4)
-    )
+    calc = solver.calculate_clues(puzzle["solutionEdges"], solver.PuzzleSize(4, 4))
     assert puzzle["cluesFull"] == calc
     # 一時ファイルに保存し読み込んでみる
     file = tmp_path / "puzzle.json"
@@ -104,3 +103,10 @@ def test_generate_puzzle_symmetry() -> None:
 def test_generate_puzzle_parallel() -> None:
     puzzle = generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
     generator.validate_puzzle(puzzle)
+
+
+def test_count_solutions_unique() -> None:
+    puzzle = generator.generate_puzzle(3, 3, seed=9)
+    size = solver.PuzzleSize(3, 3)
+    count = solver.count_solutions(puzzle["clues"], size, limit=2, step_limit=500000)
+    assert count == 1
