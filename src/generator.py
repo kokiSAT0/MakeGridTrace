@@ -100,47 +100,40 @@ def _create_loop(
 ) -> tuple[Dict[str, List[List[bool]]], int, float]:
     """ループを生成し長さと曲率を返す"""
 
+    # 対称性のあるループは失敗しやすいため複数回試行する
+    for _ in range(5):
+        edges = _create_empty_edges(size)
+        if theme == "border":
+            for c in range(size.cols):
+                edges["horizontal"][0][c] = True
+                edges["horizontal"][size.rows][c] = True
+            for r in range(size.rows):
+                edges["vertical"][r][0] = True
+                edges["vertical"][r][size.cols] = True
+        else:
+            _generate_random_loop(edges, size, rng)
+
+        if symmetry == "rotational":
+            _apply_rotational_symmetry(edges, size)
+        elif symmetry == "vertical":
+            _apply_vertical_symmetry(edges, size)
+        elif symmetry == "horizontal":
+            _apply_horizontal_symmetry(edges, size)
+
+        if _validate_edges(edges, size):
+            loop_length = _count_edges(edges)
+            curve_ratio = _calculate_curve_ratio(edges, size)
+            return edges, loop_length, curve_ratio
+
+    # すべて失敗した場合は外周だけの単純なループを返す
     edges = _create_empty_edges(size)
-    if theme == "border":
-        for c in range(size.cols):
-            edges["horizontal"][0][c] = True
-            edges["horizontal"][size.rows][c] = True
-        for r in range(size.rows):
-            edges["vertical"][r][0] = True
-            edges["vertical"][r][size.cols] = True
-    else:
-        _generate_random_loop(edges, size, rng)
-    if symmetry == "rotational":
-        _apply_rotational_symmetry(edges, size)
-        if not _validate_edges(edges, size):
-            # 回転対称後に分岐したら外周ループで代用
-            edges = _create_empty_edges(size)
-            for c in range(size.cols):
-                edges["horizontal"][0][c] = True
-                edges["horizontal"][size.rows][c] = True
-            for r in range(size.rows):
-                edges["vertical"][r][0] = True
-                edges["vertical"][r][size.cols] = True
-    elif symmetry == "vertical":
-        _apply_vertical_symmetry(edges, size)
-        if not _validate_edges(edges, size):
-            edges = _create_empty_edges(size)
-            for c in range(size.cols):
-                edges["horizontal"][0][c] = True
-                edges["horizontal"][size.rows][c] = True
-            for r in range(size.rows):
-                edges["vertical"][r][0] = True
-                edges["vertical"][r][size.cols] = True
-    elif symmetry == "horizontal":
-        _apply_horizontal_symmetry(edges, size)
-        if not _validate_edges(edges, size):
-            edges = _create_empty_edges(size)
-            for c in range(size.cols):
-                edges["horizontal"][0][c] = True
-                edges["horizontal"][size.rows][c] = True
-            for r in range(size.rows):
-                edges["vertical"][r][0] = True
-                edges["vertical"][r][size.cols] = True
+    for c in range(size.cols):
+        edges["horizontal"][0][c] = True
+        edges["horizontal"][size.rows][c] = True
+    for r in range(size.rows):
+        edges["vertical"][r][0] = True
+        edges["vertical"][r][size.cols] = True
+
     loop_length = _count_edges(edges)
     curve_ratio = _calculate_curve_ratio(edges, size)
     return edges, loop_length, curve_ratio
