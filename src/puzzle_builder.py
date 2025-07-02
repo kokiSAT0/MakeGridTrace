@@ -80,6 +80,7 @@ def _build_puzzle_dict(
     difficulty: str,
     solver_stats: Dict[str, int],
     symmetry: Optional[str],
+    theme: Optional[str],
     generation_params: Dict[str, Any],
     seed_hash: str,
 ) -> Puzzle:
@@ -104,6 +105,7 @@ def _build_puzzle_dict(
             solver_stats["steps"], solver_stats["max_depth"]
         ),
         "symmetry": symmetry,
+        "theme": theme,
         "generationParams": generation_params,
         "seedHash": seed_hash,
         "qualityScore": qs,
