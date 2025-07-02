@@ -38,7 +38,6 @@ from .puzzle_builder import _build_puzzle_dict, _reduce_clues
 from .types import Puzzle
 
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -80,6 +79,71 @@ def _evaluate_difficulty(steps: int, depth: int) -> str:
     if steps < 100000 and depth <= 30:
         return "hard"
     return "expert"
+
+
+def _create_loop(
+    size: "PuzzleSize", symmetry: Optional[str]
+) -> tuple[Dict[str, List[List[bool]]], int, float]:
+    """ループ生成を担当する内部関数"""
+
+    step_time = time.perf_counter()
+    edges = _create_empty_edges(size)
+    logger.info("空の盤面作成: %.3f 秒", time.perf_counter() - step_time)
+
+    step_time = time.perf_counter()
+    _generate_random_loop(edges, size)
+    if symmetry == "rotational":
+        # 180 度回転対称になるよう補正
+        _apply_rotational_symmetry(edges, size)
+    loop_length = _count_edges(edges)
+    curve_ratio = _calculate_curve_ratio(edges, size)
+    logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - step_time)
+    return edges, loop_length, curve_ratio
+
+
+def _create_clues(
+    edges: Dict[str, List[List[bool]]], size: "PuzzleSize", difficulty: str
+) -> tuple[List[List[int | None]], List[List[int]]]:
+    """ヒント計算と削減を行う内部関数"""
+
+    step_time = time.perf_counter()
+    clues_all = calculate_clues(edges, size)
+    logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
+
+    min_hint = max(1, int(size.rows * size.cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
+    clues = _reduce_clues(clues_all, size, min_hint=min_hint)
+    return clues, clues_all
+
+
+def _assemble_puzzle(
+    *,
+    size: "PuzzleSize",
+    edges: Dict[str, List[List[bool]]],
+    clues: List[List[int | None]],
+    clues_full: List[List[int]],
+    loop_length: int,
+    curve_ratio: float,
+    difficulty: str,
+    solver_stats: Dict[str, int],
+    symmetry: Optional[str],
+    generation_params: Dict[str, Any],
+    seed_hash: str,
+) -> Puzzle:
+    """最終的なパズル辞書を組み立てる内部関数"""
+
+    return _build_puzzle_dict(
+        size=size,
+        edges=edges,
+        clues=clues,
+        clues_full=clues_full,
+        loop_length=loop_length,
+        curve_ratio=curve_ratio,
+        difficulty=difficulty,
+        solver_stats=solver_stats,
+        symmetry=symmetry,
+        generation_params=generation_params,
+        seed_hash=seed_hash,
+    )
 
 
 def generate_puzzle(
@@ -130,29 +194,13 @@ def generate_puzzle(
 
     last_edges: Dict[str, List[List[bool]]] | None = None
     for attempt in range(RETRY_LIMIT):
-        step_time = time.perf_counter()
-        edges = _create_empty_edges(size)
-        logger.info("空の盤面作成: %.3f 秒", time.perf_counter() - step_time)
-
-        step_time = time.perf_counter()
-        _generate_random_loop(edges, size)
-        if symmetry == "rotational":
-            # 回転対称を希望する場合は生成したループを180度回転して重ねる
-            _apply_rotational_symmetry(edges, size)
-        loop_length = _count_edges(edges)
-        curve_ratio = _calculate_curve_ratio(edges, size)
-        logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - step_time)
+        edges, loop_length, curve_ratio = _create_loop(size, symmetry)
 
         if loop_length < 2 * (rows + cols):
             logger.warning("ループ長が不足したため再試行します")
             continue
 
-        step_time = time.perf_counter()
-        clues_all = calculate_clues(edges, size)
-        logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
-
-        min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
-        clues = _reduce_clues(clues_all, size, min_hint=min_hint)
+        clues, clues_all = _create_clues(edges, size, difficulty)
 
         # 0 が縦横に並んでいないか確認
         if _has_zero_adjacent(
@@ -189,7 +237,7 @@ def generate_puzzle(
                 last_edges = edges
                 continue
 
-        puzzle = _build_puzzle_dict(
+        puzzle = _assemble_puzzle(
             size=size,
             edges=edges,
             clues=clues,
@@ -235,7 +283,7 @@ def generate_puzzle(
                 step_limit=MAX_SOLVER_STEPS,
             ),
         )
-        puzzle = _build_puzzle_dict(
+        puzzle = _assemble_puzzle(
             size=size,
             edges=last_edges,
             clues=cast(List[List[int | None]], clues_all),
