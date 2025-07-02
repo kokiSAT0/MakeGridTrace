@@ -29,6 +29,8 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
     assert "solverStats" in puzzle
     assert puzzle["solverStats"]["steps"] >= 0
     assert puzzle["solverStats"]["maxDepth"] >= 0
+    assert puzzle["solverStats"]["ruleVertex"] >= 0
+    assert puzzle["solverStats"]["ruleClue"] >= 0
     assert "qualityScore" in puzzle
     assert 0 <= puzzle["qualityScore"] <= 100
     assert puzzle["generationParams"] == {
@@ -61,6 +63,12 @@ def test_save_puzzle(tmp_path: Path) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["id"].startswith("sl_4x4_easy_")
     assert "solverStats" in data
+    assert set(data["solverStats"].keys()) >= {
+        "steps",
+        "maxDepth",
+        "ruleVertex",
+        "ruleClue",
+    }
 
 
 def test_generate_puzzle_theme_border() -> None:

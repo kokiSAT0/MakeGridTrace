@@ -244,8 +244,10 @@ def generate_puzzle(
         ``(Puzzle, dict)`` のタプルを返す
 
     生成結果の ``solverStats`` フィールドには、
-    ソルバーが使った探索ステップ数 (``steps``) と
-    最大探索深さ (``maxDepth``) を記録します。
+    ソルバーが使った探索ステップ数 (``steps``)、
+    最大探索深さ (``maxDepth``)、
+    頂点次数ルールで枝刈りした回数 (``ruleVertex``)、
+    ヒント矛盾で枝刈りした回数 (``ruleClue``) を記録します。
     """
 
     if difficulty not in ALLOWED_DIFFICULTIES:
