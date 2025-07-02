@@ -132,6 +132,8 @@ def test_generate_puzzle_symmetry() -> None:
         Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="rotational", seed=7)
     )
     assert puzzle["symmetry"] == "rotational"
+    # 回転対称パズルも検証を行う
+    validator.validate_puzzle(puzzle)
 
 
 @pytest.mark.slow
@@ -139,6 +141,8 @@ def test_solution_edges_rotational() -> None:
     puzzle = cast(
         Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="rotational", seed=42)
     )
+    # 生成された回転対称パズルを検証
+    validator.validate_puzzle(puzzle)
     edges = puzzle["solutionEdges"]
     size = solver.PuzzleSize(4, 4)
     horizontal = edges["horizontal"]
