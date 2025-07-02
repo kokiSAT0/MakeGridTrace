@@ -30,9 +30,11 @@ from .loop_builder import (
     _generate_random_loop,
     _count_edges,
     _calculate_curve_ratio,
+    _apply_rotational_symmetry,
 )
 from .puzzle_io import save_puzzle
 from .validator import validate_puzzle, _has_zero_adjacent
+from .types import Puzzle
 
 
 logging.basicConfig(
@@ -40,9 +42,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-Puzzle = Dict[str, Any]
 
 # JSON スキーマのバージョン
 SCHEMA_VERSION = "2.0"

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List
 
-# generator への循環参照を避けるため型エイリアスだけ定義
-Puzzle = Dict[str, Any]
+from .types import Puzzle
 
 
 def save_puzzle(puzzle: Puzzle, directory: str | Path = "data") -> Path:

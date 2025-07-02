@@ -5,10 +5,9 @@ from __future__ import annotations
 
 from .solver import PuzzleSize, calculate_clues
 from .loop_builder import _calculate_curve_ratio
-from typing import Any, Dict, List
+from typing import List
 
-# generator との循環参照を避けるため型エイリアスのみ定義
-Puzzle = Dict[str, Any]
+from .types import Puzzle
 
 
 def _has_zero_adjacent(clues: List[List[int]]) -> bool:
