@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+from typing import List, TYPE_CHECKING
 
-from .solver import PuzzleSize, calculate_clues
-from .loop_builder import _calculate_curve_ratio
-from typing import List
+if TYPE_CHECKING:
+    from src.solver import PuzzleSize, calculate_clues
+    from src.loop_builder import _calculate_curve_ratio
+    from src.puzzle_types import Puzzle
+else:
+    try:
+        # パッケージとして実行された場合の相対インポート
+        from .solver import PuzzleSize, calculate_clues
+        from .loop_builder import _calculate_curve_ratio
 
-# 標準 ``types`` と区別するため自作モジュール名を変更
-from .puzzle_types import Puzzle
+        # 標準 ``types`` と区別するため自作モジュール名を変更
+        from .puzzle_types import Puzzle
+    except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+        # スクリプトとして直接実行されたときは同じディレクトリからインポートする
+        from solver import PuzzleSize, calculate_clues
+        from loop_builder import _calculate_curve_ratio
+        from puzzle_types import Puzzle
 
 
 def _has_zero_adjacent(clues: List[List[int]]) -> bool:

@@ -24,9 +24,8 @@ else:
             count_solutions,
         )
 
-try:
-    # パッケージとして実行された場合の相対インポート
-    from .loop_builder import (
+if TYPE_CHECKING:
+    from src.loop_builder import (
         _create_empty_edges,
         _generate_random_loop,
         _count_edges,
@@ -35,29 +34,46 @@ try:
         _apply_vertical_symmetry,
         _apply_horizontal_symmetry,
     )
-    from .puzzle_io import save_puzzle
-    from .validator import validate_puzzle, _has_zero_adjacent
-    from .constants import MAX_SOLVER_STEPS
-    from .puzzle_builder import _reduce_clues, _build_puzzle_dict
+    from src.puzzle_io import save_puzzle
+    from src.validator import validate_puzzle, _has_zero_adjacent
+    from src.constants import MAX_SOLVER_STEPS
+    from src.puzzle_builder import _reduce_clues, _build_puzzle_dict
+    from src.puzzle_types import Puzzle
+else:
+    try:
+        # パッケージとして実行された場合の相対インポート
+        from .loop_builder import (
+            _create_empty_edges,
+            _generate_random_loop,
+            _count_edges,
+            _calculate_curve_ratio,
+            _apply_rotational_symmetry,
+            _apply_vertical_symmetry,
+            _apply_horizontal_symmetry,
+        )
+        from .puzzle_io import save_puzzle
+        from .validator import validate_puzzle, _has_zero_adjacent
+        from .constants import MAX_SOLVER_STEPS
+        from .puzzle_builder import _reduce_clues, _build_puzzle_dict
 
-    # 標準ライブラリの ``types`` と名前が衝突しないよう ``puzzle_types`` に変更
-    from .puzzle_types import Puzzle
-except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
-    # スクリプトとして直接実行されたときは同じディレクトリからインポートする
-    from loop_builder import (
-        _create_empty_edges,
-        _generate_random_loop,
-        _count_edges,
-        _calculate_curve_ratio,
-        _apply_rotational_symmetry,
-        _apply_vertical_symmetry,
-        _apply_horizontal_symmetry,
-    )
-    from puzzle_io import save_puzzle
-    from validator import validate_puzzle, _has_zero_adjacent
-    from constants import MAX_SOLVER_STEPS
-    from puzzle_builder import _reduce_clues, _build_puzzle_dict
-    from puzzle_types import Puzzle
+        # 標準ライブラリの ``types`` と名前が衝突しないよう ``puzzle_types`` に変更
+        from .puzzle_types import Puzzle
+    except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+        # スクリプトとして直接実行されたときは同じディレクトリからインポートする
+        from loop_builder import (
+            _create_empty_edges,
+            _generate_random_loop,
+            _count_edges,
+            _calculate_curve_ratio,
+            _apply_rotational_symmetry,
+            _apply_vertical_symmetry,
+            _apply_horizontal_symmetry,
+        )
+        from puzzle_io import save_puzzle
+        from validator import validate_puzzle, _has_zero_adjacent
+        from constants import MAX_SOLVER_STEPS
+        from puzzle_builder import _reduce_clues, _build_puzzle_dict
+        from puzzle_types import Puzzle
 
 
 logger = logging.getLogger(__name__)

@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
+from typing import List, TYPE_CHECKING
 
 # ``types`` モジュールとの衝突を避けるため ``puzzle_types`` を使用
-from .puzzle_types import Puzzle
+if TYPE_CHECKING:
+    from src.puzzle_types import Puzzle
+else:
+    try:
+        # パッケージとして実行された場合の相対インポート
+        from .puzzle_types import Puzzle
+    except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+        # スクリプトとして直接実行されたときは同じディレクトリからインポートする
+        from puzzle_types import Puzzle
 
 
 def save_puzzle(puzzle: Puzzle, directory: str | Path = "data") -> Path:
