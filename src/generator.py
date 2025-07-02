@@ -30,6 +30,8 @@ from .loop_builder import (
     _count_edges,
     _calculate_curve_ratio,
     _apply_rotational_symmetry,
+    _apply_vertical_symmetry,
+    _apply_horizontal_symmetry,
 )
 from .puzzle_io import save_puzzle
 from .validator import validate_puzzle, _has_zero_adjacent
@@ -119,6 +121,26 @@ def _create_loop(
             for r in range(size.rows):
                 edges["vertical"][r][0] = True
                 edges["vertical"][r][size.cols] = True
+    elif symmetry == "vertical":
+        _apply_vertical_symmetry(edges, size)
+        if not _validate_edges(edges, size):
+            edges = _create_empty_edges(size)
+            for c in range(size.cols):
+                edges["horizontal"][0][c] = True
+                edges["horizontal"][size.rows][c] = True
+            for r in range(size.rows):
+                edges["vertical"][r][0] = True
+                edges["vertical"][r][size.cols] = True
+    elif symmetry == "horizontal":
+        _apply_horizontal_symmetry(edges, size)
+        if not _validate_edges(edges, size):
+            edges = _create_empty_edges(size)
+            for c in range(size.cols):
+                edges["horizontal"][0][c] = True
+                edges["horizontal"][size.rows][c] = True
+            for r in range(size.rows):
+                edges["vertical"][r][0] = True
+                edges["vertical"][r][size.cols] = True
     loop_length = _count_edges(edges)
     curve_ratio = _calculate_curve_ratio(edges, size)
     return edges, loop_length, curve_ratio
@@ -141,7 +163,7 @@ def generate_puzzle(
     :param cols: 盤面の列数
     :param difficulty: 難易度ラベル
     :param seed: 乱数シード。再現したいときに指定する
-    :param symmetry: 回転対称を指定する場合は "rotational"
+    :param symmetry: 対称性を指定。"rotational" / "vertical" / "horizontal" のいずれか
     :param timeout_s: 生成処理のタイムアウト秒。None なら無制限
     :param return_stats: True なら生成統計も返す
     :return: 生成したパズル。``return_stats`` が True の場合は
@@ -333,12 +355,14 @@ def generate_puzzle_parallel(
     seed: int | None = None,
     symmetry: Optional[str] = None,
     theme: Optional[str] = None,
+    timeout_s: float | None = None,
     return_stats: bool = False,
     jobs: int | None = None,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
     """複数プロセスで ``generate_puzzle`` を試行して最初の結果を返す
 
     :param theme: 盤面のテーマを指定する文字列
+    :param timeout_s: 生成処理のタイムアウト秒数
     """
 
     # 初期シードに ``seed`` を使い、プロセス番号でシードをずらして実行する
@@ -359,6 +383,7 @@ def generate_puzzle_parallel(
                 seed=base_seed + i,
                 symmetry=symmetry,
                 theme=theme,
+                timeout_s=timeout_s,
                 return_stats=return_stats,
             )
             for i in range(jobs)
@@ -469,8 +494,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--symmetry",
-        choices=["rotational"],
-        help="回転対称にしたい場合に指定",
+        choices=["rotational", "vertical", "horizontal"],
+        help="対称性を指定",
     )
     parser.add_argument(
         "--theme",
