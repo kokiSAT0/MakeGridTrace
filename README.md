@@ -36,6 +36,15 @@ puzzle = generator.generate_puzzle(4, 4, difficulty="easy")
 
 生成結果は Python の辞書型（`dict`）として得られます。
 
+```python
+# 回転対称な盤面を生成したい場合は symmetry="rotational" を指定します
+puzzle_sym = generator.generate_puzzle(
+    4, 4, difficulty="easy", symmetry="rotational"
+)
+```
+
+`symmetry` を `"rotational"` にすると、`solutionEdges` が 180 度回転しても同じ形になるよう調整されます。
+
 ### スクリプトとして実行する
 
 `generator.py` は直接実行することもできます。実行時は少なくとも盤面の行数と列数を指定してください。
