@@ -102,10 +102,10 @@ def generate_puzzle(
 | `createdBy`      | string  | 例: `"auto-gen-v1"`                           |
 | `createdAt`      | string  | ISO-8601 日付文字列                            |
 | `symmetry`       | string? | 対称性オプション                               |
-| `generationParams` | object | 呼び出しパラメータのエコーバック (未実装)      |
-| `seedHash`       | string  | シード値のハッシュ (未実装)                   |
+| `generationParams` | object | 呼び出しパラメータのエコーバック               |
+| `seedHash`       | string  | シード値のハッシュ                             |
 
-現状のコードでは `qualityScore`, `generationParams`, `seedHash`, `theme` などはまだ付与されません。今後の開発項目として残っています。
+現状のコードでは `qualityScore` と `theme` はまだ付与されません。今後の開発項目として残っています。
 
 ---
 
@@ -165,7 +165,7 @@ flowchart TD
 - Python 3.12 対応、pytest によるテストスイートあり
 - `generate_puzzle` 関数は v2 仕様の一部 (`schemaVersion`, `loopStats`, `symmetry`) を実装済み
 - ハード制約 H-1〜H-9 を `validate_puzzle` で検証済み
-- テーマ指定、Quality Score、seedHash などは未実装
+- テーマ指定と Quality Score は未実装
 - CLI スクリプト `python src/generator.py` および `python -m src.bulk_generator` で生成可能
 
 ---

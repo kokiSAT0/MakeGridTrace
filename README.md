@@ -95,6 +95,8 @@ python -m src.bulk_generator 4 4 2
 - `cluesFull` : すべてのセルに数値が入った解答用ヒント
 - `solutionEdges` : 正解ループの情報。水平線と垂直線の配列をまとめたもの
 - `difficulty` : 難易度ラベル
+- `generationParams` : 生成に使った引数を記録したオブジェクト
+- `seedHash` : シード値をハッシュ化した文字列
 
 より詳しく知りたい場合は `slitherlink_map_spec_v1.md` を参照してください。
 
