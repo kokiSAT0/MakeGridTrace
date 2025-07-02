@@ -8,7 +8,7 @@ import os
 import random
 import concurrent.futures
 import hashlib
-from typing import Any, Dict, List, Optional, cast, TYPE_CHECKING
+from typing import Dict, List, Optional, cast, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.solver import PuzzleSize, calculate_clues, count_solutions
@@ -96,8 +96,8 @@ def generate_puzzle(
     if difficulty not in ALLOWED_DIFFICULTIES:
         raise ValueError(f"difficulty は {ALLOWED_DIFFICULTIES} のいずれかで指定")
 
-    if seed is not None:
-        random.seed(seed)
+    # 乱数生成器を作成。シードを指定すると結果を再現できる
+    rng = random.Random(seed)
 
     generation_params = {
         "rows": rows,
@@ -121,7 +121,7 @@ def generate_puzzle(
         logger.info("空の盤面作成: %.3f 秒", time.perf_counter() - step_time)
 
         step_time = time.perf_counter()
-        _generate_random_loop(edges, size)
+        _generate_random_loop(edges, size, rng)
         if symmetry == "rotational":
             # 回転対称を希望する場合は生成したループを180度回転して重ねる
             _apply_rotational_symmetry(edges, size)
@@ -138,7 +138,7 @@ def generate_puzzle(
         logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
 
         min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
-        clues = _reduce_clues(clues_all, size, min_hint=min_hint)
+        clues = _reduce_clues(clues_all, size, rng, min_hint=min_hint)
 
         # 0 が縦横に並んでいないか確認
         if _has_zero_adjacent(
