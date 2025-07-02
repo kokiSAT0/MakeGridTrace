@@ -1,4 +1,5 @@
 import json
+import hashlib
 from pathlib import Path
 import sys
 import pytest
@@ -24,6 +25,14 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
     assert "solverStats" in puzzle
     assert puzzle["solverStats"]["steps"] >= 0
     assert puzzle["solverStats"]["maxDepth"] >= 0
+    assert puzzle["generationParams"] == {
+        "rows": 4,
+        "cols": 4,
+        "difficulty": "normal",
+        "seed": 0,
+        "symmetry": None,
+    }
+    assert puzzle["seedHash"] == hashlib.sha256(b"0").hexdigest()
     calc = solver.calculate_clues(puzzle["solutionEdges"], solver.PuzzleSize(4, 4))
     assert puzzle["cluesFull"] == calc
     # 一時ファイルに保存し読み込んでみる
@@ -105,6 +114,21 @@ def test_generate_puzzle_symmetry() -> None:
 def test_generate_puzzle_parallel() -> None:
     puzzle = generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
     validator.validate_puzzle(puzzle)
+
+
+def test_generation_params_and_seedhash() -> None:
+    puzzle = generator.generate_puzzle(
+        3, 3, difficulty="normal", seed=42, symmetry="rotational"
+    )
+    expected = {
+        "rows": 3,
+        "cols": 3,
+        "difficulty": "normal",
+        "seed": 42,
+        "symmetry": "rotational",
+    }
+    assert puzzle["generationParams"] == expected
+    assert puzzle["seedHash"] == hashlib.sha256(b"42").hexdigest()
 
 
 def test_count_solutions_unique() -> None:
