@@ -26,6 +26,8 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
     assert "solverStats" in puzzle
     assert puzzle["solverStats"]["steps"] >= 0
     assert puzzle["solverStats"]["maxDepth"] >= 0
+    assert "qualityScore" in puzzle
+    assert 0 <= puzzle["qualityScore"] <= 100
     assert puzzle["generationParams"] == {
         "rows": 4,
         "cols": 4,
