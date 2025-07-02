@@ -53,9 +53,16 @@ def _calculate_hint_dispersion(clues: List[List[int | None]]) -> float:
 
 
 def _calculate_quality_score(
-    clues: List[List[int | None]], curve_ratio: float, solver_steps: int
+    clues: List[List[int | None]],
+    curve_ratio: float,
+    solver_steps: int,
+    loop_length: int,
 ) -> float:
-    """曲率比率とヒント密度から簡易的な品質スコアを計算する"""
+    """曲率比率とヒントの配置から品質スコアを計算する
+
+    ``loop_length`` の長さも評価に取り入れ、外周をなぞるだけの短い
+    ループが高得点にならないよう調整する。
+    """
 
     cells = len(clues) * len(clues[0]) if clues else 0
     if cells == 0:
@@ -72,6 +79,10 @@ def _calculate_quality_score(
     score = 20 * math.log10(max(curve_ratio * 100, 0.01)) + 25 * entropy
     score += 15 * dispersion
     score += min(20.0, 10000.0 / (solver_steps + 1))
+    # 盤面サイズに対するループ長の割合を 0~1 で計算しスコアに加算
+    max_len = 2 * (len(clues) + len(clues[0]))
+    length_ratio = min(1.0, loop_length / max_len) if max_len else 0.0
+    score += 20 * length_ratio
     return round(max(0.0, min(100.0, score)), 2)
 
 
@@ -126,7 +137,9 @@ def _build_puzzle_dict(
 
     # timezone-aware な UTC 時刻を取得する
     timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-    qs = _calculate_quality_score(clues, curve_ratio, solver_stats["steps"])
+    qs = _calculate_quality_score(
+        clues, curve_ratio, solver_stats["steps"], loop_length
+    )
     puzzle: Puzzle = {
         "schemaVersion": SCHEMA_VERSION,
         "id": f"sl_{size.rows}x{size.cols}_{difficulty}_{timestamp}",
