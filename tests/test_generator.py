@@ -14,6 +14,9 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
     data = json.dumps(puzzle)
     assert "clues" in puzzle
     assert "solutionEdges" in puzzle
+    assert puzzle["schemaVersion"] == "2.0"
+    assert "loopStats" in puzzle
+    assert puzzle["loopStats"]["curveRatio"] >= 0.15
     # 一時ファイルに保存し読み込んでみる
     file = tmp_path / "puzzle.json"
     file.write_text(data, encoding="utf-8")
@@ -51,6 +54,15 @@ def test_validate_puzzle_fail() -> None:
             break
     if not broken:
         puzzle["solutionEdges"]["vertical"][0][0] = False
+    with pytest.raises(ValueError):
+        generator.validate_puzzle(puzzle)
+
+
+def test_zero_adjacent_fail() -> None:
+    puzzle = generator.generate_puzzle(3, 3, difficulty="easy")
+    # 0 を縦に並べて検証エラーを期待
+    puzzle["clues"][0][0] = 0
+    puzzle["clues"][1][0] = 0
     with pytest.raises(ValueError):
         generator.validate_puzzle(puzzle)
 
