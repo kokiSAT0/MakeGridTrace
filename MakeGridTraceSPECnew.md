@@ -72,7 +72,7 @@ def generate_puzzle(
 - `seed`: 乱数シード。指定すると同じ盤面を再生成できます。
 - `return_stats`: `True` にすると生成過程の統計情報も返します。
 
-※ 現行実装では `theme`, `timeout_s` は未対応、`return_stats` のみ利用可能です。
+現行実装では `theme` に `"border"` を指定可能で、`timeout_s` も利用できます。
 
 ### 3.2 その他の関数
 
@@ -98,14 +98,14 @@ def generate_puzzle(
 | `difficulty`     | string  | ラベル。生成後の解析結果で上書きされる場合あり |
 | `difficultyEval` | string  | ソルバー統計から算出した実測難易度            |
 | `loopStats`      | object  | `{ "length": int, "curveRatio": float }`    |
-| `qualityScore`   | number  | 0〜100 の品質指数 (将来実装予定)              |
+| `qualityScore`   | number  | 0〜100 の品質指数                             |
 | `createdBy`      | string  | 例: `"auto-gen-v1"`                           |
 | `createdAt`      | string  | ISO-8601 日付文字列                            |
 | `symmetry`       | string? | 対称性オプション                               |
 | `generationParams` | object | 呼び出しパラメータのエコーバック               |
 | `seedHash`       | string  | シード値のハッシュ                             |
 
-現状のコードでは `qualityScore` と `theme` はまだ付与されません。今後の開発項目として残っています。
+現状のコードでは `qualityScore` が計算され、`theme` フィールドも利用できます。
 
 ---
 
@@ -165,17 +165,17 @@ flowchart TD
 - Python 3.12 対応、pytest によるテストスイートあり
 - `generate_puzzle` 関数は v2 仕様の一部 (`schemaVersion`, `loopStats`, `symmetry`) を実装済み
 - ハード制約 H-1〜H-9 を `validate_puzzle` で検証済み
-- テーマ指定と Quality Score は未実装
+- `theme` 引数に `"border"` が利用可能で、Quality Score も計算済み
 - CLI スクリプト `python src/generator.py` および `python -m src.bulk_generator` で生成可能
 
 ---
 
 ## 9. 今後の開発方針
 
-1. **テーマ (`theme`) 対応**
-   - ループ初期形状にパターンライブラリを組み込み、指定テーマを表現する
-2. **品質指標 (Quality Score) 実装**
-   - 生成後の曲率比率やヒント分散度、ソルバー手筋ログから QS を計算
+1. **テーマ (`theme`) 拡充**
+   - 現在は `"border"` のみ実装済み。今後は複数パターンを追加する
+2. **品質指標 (Quality Score) 改良**
+   - 曲率比率やヒント分散度に加え、より多くの統計情報から算出する
 3. **solverStats 出力**
    - ソルバーが使った手筋回数を記録し JSON に含める
 4. **generationParams / seedHash**
