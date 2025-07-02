@@ -38,11 +38,22 @@ puzzle = generator.generate_puzzle(4, 4, difficulty="easy")
 
 ### スクリプトとして実行する
 
-`generator.py` は直接実行することも可能です。以下のようにコマンドラインから実行すると、サンプルのパズルが `data/` に保存されます。
+`generator.py` は直接実行することもできます。実行時は少なくとも盤面の行数と列数を指定してください。
 
 ```bash
-python src/generator.py
+python src/generator.py 4 4 --difficulty normal
 ```
+
+上記コマンドでは 4×4 の盤面を難易度 `normal` で生成し、`data/map_gridtrace.json` に保存します。保存後は盤面を ASCII 形式で標準出力に表示します。
+
+#### コマンドライン引数一覧
+
+- `rows` : 盤面の行数。必須の数値です。
+- `cols` : 盤面の列数。必須の数値です。
+- `--difficulty` : 難易度ラベル。`easy` / `normal` / `hard` / `expert` から選択。省略すると `easy`。
+- `--symmetry` : `rotational` を指定すると盤面を 180 度回転対称にします。
+- `--seed` : 乱数シード。再現したいときに数値を指定します。
+- `--parallel` : 並列生成プロセス数。複数指定すると生成を複数プロセスで試行します。
 
 ### 複数の難易度をまとめて生成する
 
