@@ -538,6 +538,7 @@ def generate_puzzle(
             "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
             "size": {"rows": rows, "cols": cols},
             "clues": clues,
+            "cluesFull": clues_all,
             "solutionEdges": edges,
             "loopStats": {"length": loop_length, "curveRatio": curve_ratio},
             # ソルバーの解析統計を JSON に含める
@@ -596,6 +597,7 @@ def generate_puzzle(
             "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
             "size": {"rows": rows, "cols": cols},
             "clues": clues_all,
+            "cluesFull": clues_all,
             "solutionEdges": last_edges,
             "loopStats": {
                 "length": _count_edges(last_edges),
@@ -799,20 +801,29 @@ def validate_puzzle(puzzle: Puzzle) -> None:
         raise ValueError("ループ長がハード制約を満たしていません")
 
     # ヒント数字の整合をチェック
+    clues_full = puzzle.get("cluesFull")
+    if not isinstance(clues_full, list):
+        raise ValueError("cluesFull フィールドが存在しません")
+    calculated = _calculate_clues(edges, size)
+    if clues_full != calculated:
+        raise ValueError("cluesFull が solutionEdges と一致しません")
+
     clues = puzzle.get("clues")
     if not isinstance(clues, list):
         raise ValueError("clues フィールドが存在しません")
-    calculated = _calculate_clues(edges, size)
-    if clues != calculated:
-        raise ValueError("clues が solutionEdges と一致しません")
+    for r in range(size.rows):
+        for c in range(size.cols):
+            val = clues[r][c]
+            if val is not None and val != clues_full[r][c]:
+                raise ValueError("clues が cluesFull と一致しません")
 
     # ハード制約 H-8: 0 の隣接禁止をチェック
     for r in range(size.rows):
         for c in range(size.cols):
-            if clues[r][c] == 0:
-                if r + 1 < size.rows and clues[r + 1][c] == 0:
+            if clues_full[r][c] == 0:
+                if r + 1 < size.rows and clues_full[r + 1][c] == 0:
                     raise ValueError("0 が縦に隣接しています")
-                if c + 1 < size.cols and clues[r][c + 1] == 0:
+                if c + 1 < size.cols and clues_full[r][c + 1] == 0:
                     raise ValueError("0 が横に隣接しています")
 
     # ハード制約 H-9: 線カーブ比率下限チェック

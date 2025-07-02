@@ -71,7 +71,8 @@ python -m src.bulk_generator 4 4 2
 
 - `id` : マップを一意に識別する文字列
 - `size` : 盤面の行数と列数を表すオブジェクト
-- `clues` : 各セルのヒント数字を 2 次元配列で保持（空白マスは `null`）
+- `clues` : 出題用ヒント。空白マスは `null`
+- `cluesFull` : すべてのセルに数値が入った解答用ヒント
 - `solutionEdges` : 正解ループの情報。水平線と垂直線の配列をまとめたもの
 - `difficulty` : 難易度ラベル
 
