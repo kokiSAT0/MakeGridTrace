@@ -8,7 +8,7 @@ import os
 import random
 import concurrent.futures
 import hashlib
-from typing import Any, Dict, List, Optional, cast, TYPE_CHECKING
+from typing import Dict, List, Optional, cast, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.solver import PuzzleSize, calculate_clues, count_solutions
@@ -36,7 +36,6 @@ from .validator import validate_puzzle, _has_zero_adjacent
 from .puzzle_builder import _build_puzzle_dict, _reduce_clues
 
 from .types import Puzzle
-
 
 
 logging.basicConfig(
