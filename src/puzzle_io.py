@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 from typing import List
 
-from .types import Puzzle
+# ``types`` モジュールとの衝突を避けるため ``puzzle_types`` を使用
+from .puzzle_types import Puzzle
 
 
 def save_puzzle(puzzle: Puzzle, directory: str | Path = "data") -> Path:

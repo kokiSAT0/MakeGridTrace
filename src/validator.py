@@ -7,7 +7,8 @@ from .solver import PuzzleSize, calculate_clues
 from .loop_builder import _calculate_curve_ratio
 from typing import List
 
-from .types import Puzzle
+# 標準 ``types`` と区別するため自作モジュール名を変更
+from .puzzle_types import Puzzle
 
 
 def _has_zero_adjacent(clues: List[List[int]]) -> bool:
