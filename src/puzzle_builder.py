@@ -93,6 +93,7 @@ def _reduce_clues(
     rng: random.Random,
     *,
     min_hint: int,
+    step_limit: int = MAX_SOLVER_STEPS,
 ) -> List[List[int | None]]:
     """ヒントをランダムに削減して一意性を保つ
 
@@ -100,6 +101,7 @@ def _reduce_clues(
     そのため削除後に ``_has_zero_adjacent`` を確認し、違反する場合は削除を戻す。
 
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
+    :param step_limit: ソルバーに渡すステップ上限
     """
 
     result: List[List[int | None]] = [[v for v in row] for row in clues]
@@ -114,7 +116,7 @@ def _reduce_clues(
         hint_count = sum(1 for row in result for v in row if v is not None)
         if (
             hint_count < min_hint
-            or count_solutions(result, size, limit=2, step_limit=MAX_SOLVER_STEPS) != 1
+            or count_solutions(result, size, limit=2, step_limit=step_limit) != 1
             or validator._has_zero_adjacent(
                 [[v if v is not None else -1 for v in row] for row in result]
             )

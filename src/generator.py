@@ -154,6 +154,7 @@ def generate_puzzle(
     seed: int | None = None,
     symmetry: Optional[str] = None,
     theme: Optional[str] = None,
+    solver_step_limit: int = MAX_SOLVER_STEPS,
     timeout_s: float | None = None,
     return_stats: bool = False,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
@@ -165,6 +166,7 @@ def generate_puzzle(
     :param seed: 乱数シード。再現したいときに指定する
     :param symmetry: 対称性を指定。"rotational" / "vertical" / "horizontal" のいずれか
     :param timeout_s: 生成処理のタイムアウト秒。None なら無制限
+    :param solver_step_limit: ソルバー探索の最大ステップ数
     :param return_stats: True なら生成統計も返す
     :return: 生成したパズル。``return_stats`` が True の場合は
         ``(Puzzle, dict)`` のタプルを返す
@@ -187,6 +189,7 @@ def generate_puzzle(
         "seed": seed,
         "symmetry": symmetry,
         "theme": theme,
+        "solverStepLimit": solver_step_limit,
     }
 
     seed_hash = hashlib.sha256(str(seed).encode("utf-8")).hexdigest()
@@ -219,7 +222,9 @@ def generate_puzzle(
         logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
 
         min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
-        clues = _reduce_clues(clues_all, size, rng, min_hint=min_hint)
+        clues = _reduce_clues(
+            clues_all, size, rng, min_hint=min_hint, step_limit=solver_step_limit
+        )
 
         # 0 が縦横に並んでいないか確認
         if _has_zero_adjacent(
@@ -235,7 +240,7 @@ def generate_puzzle(
                 size,
                 limit=2,
                 return_stats=True,
-                step_limit=MAX_SOLVER_STEPS,
+                step_limit=solver_step_limit,
             ),
         )
         if solutions != 1:
@@ -248,7 +253,7 @@ def generate_puzzle(
                     size,
                     limit=2,
                     return_stats=True,
-                    step_limit=MAX_SOLVER_STEPS,
+                    step_limit=solver_step_limit,
                 ),
             )
             if solutions != 1:
@@ -307,7 +312,7 @@ def generate_puzzle(
                 size,
                 limit=2,
                 return_stats=True,
-                step_limit=MAX_SOLVER_STEPS,
+                step_limit=solver_step_limit,
             ),
         )
         puzzle = _build_puzzle_dict(
@@ -355,6 +360,7 @@ def generate_puzzle_parallel(
     seed: int | None = None,
     symmetry: Optional[str] = None,
     theme: Optional[str] = None,
+    solver_step_limit: int = MAX_SOLVER_STEPS,
     timeout_s: float | None = None,
     return_stats: bool = False,
     jobs: int | None = None,
@@ -362,6 +368,7 @@ def generate_puzzle_parallel(
     """複数プロセスで ``generate_puzzle`` を試行して最初の結果を返す
 
     :param theme: 盤面のテーマを指定する文字列
+    :param solver_step_limit: ソルバー探索の最大ステップ数
     :param timeout_s: 生成処理のタイムアウト秒数
     """
 
@@ -384,6 +391,7 @@ def generate_puzzle_parallel(
                 symmetry=symmetry,
                 theme=theme,
                 timeout_s=timeout_s,
+                solver_step_limit=solver_step_limit,
                 return_stats=return_stats,
             )
             for i in range(jobs)
@@ -515,6 +523,12 @@ if __name__ == "__main__":
         default=1,
         help="並列生成プロセス数 (1 なら通常実行)",
     )
+    parser.add_argument(
+        "--step-limit",
+        type=int,
+        default=MAX_SOLVER_STEPS,
+        help="ソルバーの最大ステップ数",
+    )
     args = parser.parse_args()
 
     if args.parallel > 1:
@@ -525,6 +539,7 @@ if __name__ == "__main__":
             seed=args.seed,
             symmetry=args.symmetry,
             theme=args.theme,
+            solver_step_limit=args.step_limit,
             timeout_s=args.timeout,
             jobs=args.parallel,
         )
@@ -536,6 +551,7 @@ if __name__ == "__main__":
             seed=args.seed,
             symmetry=args.symmetry,
             theme=args.theme,
+            solver_step_limit=args.step_limit,
             timeout_s=args.timeout,
         )
     pzl = cast(Puzzle, pzl_obj)
