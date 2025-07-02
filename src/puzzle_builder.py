@@ -138,6 +138,73 @@ def _reduce_clues(
     return result
 
 
+def _optimize_clues(
+    clues: List[List[int | None]],
+    clues_full: List[List[int]],
+    size: PuzzleSize,
+    rng: random.Random,
+    *,
+    min_hint: int,
+    loop_length: int,
+    curve_ratio: float,
+    solver_steps: int,
+    iterations: int = 30,
+    step_limit: int = MAX_SOLVER_STEPS,
+) -> List[List[int | None]]:
+    """焼きなまし法でヒント配置を微調整する
+
+    ヒントの追加・削除をランダムに行い、Quality Score が
+    向上する場合に変更を採用する簡易アルゴリズムです。
+
+    :param rng: 乱数生成に利用する ``random.Random`` インスタンス
+    :param iterations: 試行回数。多いほど時間が掛かるが精度が上がる
+    """
+
+    best = [row[:] for row in clues]
+    sols = count_solutions(best, size, limit=2, step_limit=step_limit)
+    if sols != 1:
+        return clues
+    best_score = _calculate_quality_score(best, curve_ratio, solver_steps, loop_length)
+
+    current = [row[:] for row in best]
+    current_score = best_score
+    temperature = 1.0
+
+    for _ in range(iterations):
+        temperature = max(0.01, temperature * 0.95)
+        r = rng.randrange(size.rows)
+        c = rng.randrange(size.cols)
+        candidate = [row[:] for row in current]
+        if candidate[r][c] is None:
+            candidate[r][c] = clues_full[r][c]
+        else:
+            hint_count = sum(1 for row in candidate for v in row if v is not None)
+            if hint_count <= min_hint:
+                continue
+            candidate[r][c] = None
+
+        if validator._has_zero_adjacent(
+            [[v if v is not None else -1 for v in row] for row in candidate]
+        ):
+            continue
+
+        if count_solutions(candidate, size, limit=2, step_limit=step_limit) != 1:
+            continue
+
+        cand_score = _calculate_quality_score(
+            candidate, curve_ratio, solver_steps, loop_length
+        )
+        delta = cand_score - current_score
+        if delta > 0 or math.exp(delta / temperature) > rng.random():
+            current = candidate
+            current_score = cand_score
+            if cand_score > best_score:
+                best = candidate
+                best_score = cand_score
+
+    return best
+
+
 def _build_puzzle_dict(
     *,
     size: PuzzleSize,
@@ -193,6 +260,7 @@ def _build_puzzle_dict(
 __all__ = [
     "_build_puzzle_dict",
     "_reduce_clues",
+    "_optimize_clues",
     "_calculate_quality_score",
     "_calculate_hint_dispersion",
 ]

@@ -272,6 +272,39 @@ def test_reduce_clues_zero_adjacent() -> None:
     )
 
 
+def test_optimize_clues_improves_qs() -> None:
+    size = solver.PuzzleSize(3, 3)
+    rng_loop = random.Random(2)
+    edges = loop_builder._create_empty_edges(size)
+    loop_builder._generate_random_loop(edges, size, rng_loop)
+    clues_full = solver.calculate_clues(edges, size)
+    clues = puzzle_builder._reduce_clues(clues_full, size, random.Random(3), min_hint=1)
+    sols, stats = solver.count_solutions(clues, size, limit=2, return_stats=True)
+    curve_ratio = loop_builder._calculate_curve_ratio(edges, size)
+    loop_length = loop_builder._count_edges(edges)
+    qs_before = puzzle_builder._calculate_quality_score(
+        clues, curve_ratio, stats["steps"], loop_length
+    )
+    optimized = puzzle_builder._optimize_clues(
+        clues,
+        clues_full,
+        size,
+        random.Random(4),
+        min_hint=1,
+        loop_length=loop_length,
+        curve_ratio=curve_ratio,
+        solver_steps=stats["steps"],
+        iterations=5,
+    )
+    sols_after = solver.count_solutions(optimized, size, limit=2)
+    assert sols_after == 1
+    stats_after = solver.count_solutions(optimized, size, limit=2, return_stats=True)[1]
+    qs_after = puzzle_builder._calculate_quality_score(
+        optimized, curve_ratio, stats_after["steps"], loop_length
+    )
+    assert qs_after >= qs_before
+
+
 def test_generate_puzzle_step_limit() -> None:
     puzzle = cast(
         Dict[str, Any],

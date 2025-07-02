@@ -4,8 +4,8 @@
 
 ## 未実装・強化が必要な項目チェックリスト
 
-- [ ] **ヒント最適化(Simulated Annealing)**
-  - 仕様書の生成パイプライン D で予定されている焼きなまし最適化は未実装です【F:MakeGridTraceSPECnew.md†L144-L160】。
+- [x] **ヒント最適化(Simulated Annealing)**
+  - 仕様書の生成パイプライン D で予定されている焼きなまし最適化を実装しました【F:MakeGridTraceSPECnew.md†L144-L160】。
 - [ ] **テーマ(`theme`)の拡充**
   - 現在は `"border"` のみ対応。将来的に複数テーマを追加予定【F:MakeGridTraceSPECnew.md†L176-L177】。
 - [ ] **品質指標(Quality Score)の改良**
