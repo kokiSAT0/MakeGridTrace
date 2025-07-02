@@ -86,6 +86,18 @@ def test_zero_adjacent_fail() -> None:
         validator.validate_puzzle(puzzle)
 
 
+def test_has_zero_adjacent_helper() -> None:
+    clues = [[0, 0], [1, 2]]
+    assert validator._has_zero_adjacent(clues)
+    clues2 = [[0, 1], [2, 3]]
+    assert not validator._has_zero_adjacent(clues2)
+
+
+def test_generator_zero_not_adjacent() -> None:
+    puzzle = generator.generate_puzzle(3, 3, seed=10)
+    assert not validator._has_zero_adjacent(puzzle["cluesFull"])
+
+
 def test_generate_multiple_and_save(tmp_path: Path) -> None:
     puzzles = generator.generate_multiple_puzzles(3, 3, count_each=1, seed=5)
     assert len(puzzles) == 4

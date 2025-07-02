@@ -5,10 +5,25 @@ from __future__ import annotations
 
 from .solver import PuzzleSize, calculate_clues
 from .loop_builder import _calculate_curve_ratio
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 # generator との循環参照を避けるため型エイリアスのみ定義
 Puzzle = Dict[str, Any]
+
+
+def _has_zero_adjacent(clues: List[List[int]]) -> bool:
+    """0 が縦または横に隣接しているか調べるヘルパー関数"""
+
+    rows = len(clues)
+    cols = len(clues[0]) if rows > 0 else 0
+    for r in range(rows):
+        for c in range(cols):
+            if clues[r][c] == 0:
+                if r + 1 < rows and clues[r + 1][c] == 0:
+                    return True
+                if c + 1 < cols and clues[r][c + 1] == 0:
+                    return True
+    return False
 
 
 def validate_puzzle(puzzle: Puzzle) -> None:
@@ -112,17 +127,13 @@ def validate_puzzle(puzzle: Puzzle) -> None:
             if val is not None and val != clues_full[r][c]:
                 raise ValueError("clues が cluesFull と一致しません")
 
-    for r in range(size.rows):
-        for c in range(size.cols):
-            if clues_full[r][c] == 0:
-                if r + 1 < size.rows and clues_full[r + 1][c] == 0:
-                    raise ValueError("0 が縦に隣接しています")
-                if c + 1 < size.cols and clues_full[r][c + 1] == 0:
-                    raise ValueError("0 が横に隣接しています")
+    if _has_zero_adjacent(clues_full):
+        # どこかで 0 が隣接している
+        raise ValueError("0 が隣接しています")
 
     curve_ratio = _calculate_curve_ratio(edges, size)
     if curve_ratio < 0.15:
         raise ValueError("線カーブ比率がハード制約を満たしていません")
 
 
-__all__ = ["validate_puzzle"]
+__all__ = ["validate_puzzle", "_has_zero_adjacent"]
