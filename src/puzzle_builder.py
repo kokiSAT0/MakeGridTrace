@@ -83,6 +83,7 @@ def _build_puzzle_dict(
     theme: Optional[str],
     generation_params: Dict[str, Any],
     seed_hash: str,
+    partial: bool = False,
 ) -> Puzzle:
     """パズル用の辞書オブジェクトを構築するヘルパー関数"""
 
@@ -111,6 +112,7 @@ def _build_puzzle_dict(
         "qualityScore": qs,
         "createdBy": "auto-gen-v1",
         "createdAt": datetime.utcnow().date().isoformat(),
+        "partial": partial,
     }
     return puzzle
 

@@ -33,6 +33,7 @@ puzzle = generator.generate_puzzle(4, 4, difficulty="easy")
 
 - `rows` と `cols` は盤面サイズ。
 - `difficulty` は `"easy"` / `"normal"` / `"hard"` / `"expert"` から選択。
+- `timeout_s` を指定するとその秒数で生成処理を打ち切ります。
 
 生成結果は Python の辞書型（`dict`）として得られます。
 
@@ -62,6 +63,7 @@ python src/generator.py 4 4 --difficulty normal
 - `--difficulty` : 難易度ラベル。`easy` / `normal` / `hard` / `expert` から選択。省略すると `easy`。
 - `--symmetry` : `rotational` を指定すると盤面を 180 度回転対称にします。
 - `--seed` : 乱数シード。再現したいときに数値を指定します。
+- `--timeout` : 生成処理のタイムアウト秒数。指定しない場合は無制限。
 - `--parallel` : 並列生成プロセス数。複数指定すると生成を複数プロセスで試行します。
 
 ### 複数の難易度をまとめて生成する
