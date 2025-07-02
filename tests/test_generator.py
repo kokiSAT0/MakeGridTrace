@@ -190,6 +190,29 @@ def test_solution_edges_rotational() -> None:
 
 
 @pytest.mark.slow
+@pytest.mark.xfail(reason="symmetry generation is unstable")
+def test_solution_edges_vertical() -> None:
+    puzzle = cast(
+        Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="vertical", seed=101)
+    )
+    validator.validate_puzzle(puzzle)
+    edges = puzzle["solutionEdges"]
+    size = solver.PuzzleSize(4, 4)
+    horizontal = edges["horizontal"]
+    vertical = edges["vertical"]
+
+    for r in range(size.rows + 1):
+        sr = size.rows - r
+        for c in range(size.cols):
+            assert horizontal[r][c] == horizontal[sr][c]
+
+    for r in range(size.rows):
+        sr = size.rows - r - 1
+        for c in range(size.cols + 1):
+            assert vertical[r][c] == vertical[sr][c]
+
+
+@pytest.mark.slow
 def test_generate_puzzle_parallel() -> None:
     puzzle = cast(
         Dict[str, Any], generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)

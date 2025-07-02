@@ -123,6 +123,50 @@ def _apply_rotational_symmetry(
             vertical[sr][sc] = val
 
 
+def _apply_vertical_symmetry(
+    edges: Dict[str, List[List[bool]]], size: PuzzleSize
+) -> None:
+    """上下方向で鏡映対称になるよう辺情報を補正"""
+
+    horizontal = edges["horizontal"]
+    for r in range(size.rows + 1):
+        sr = size.rows - r
+        for c in range(size.cols):
+            val = horizontal[r][c] or horizontal[sr][c]
+            horizontal[r][c] = val
+            horizontal[sr][c] = val
+
+    vertical = edges["vertical"]
+    for r in range(size.rows):
+        sr = size.rows - r
+        for c in range(size.cols + 1):
+            val = vertical[r][c] or vertical[sr - 1][c]
+            vertical[r][c] = val
+            vertical[sr - 1][c] = val
+
+
+def _apply_horizontal_symmetry(
+    edges: Dict[str, List[List[bool]]], size: PuzzleSize
+) -> None:
+    """左右方向で鏡映対称になるよう辺情報を補正"""
+
+    horizontal = edges["horizontal"]
+    for r in range(size.rows + 1):
+        for c in range(size.cols):
+            sc = size.cols - c - 1
+            val = horizontal[r][c] or horizontal[r][sc]
+            horizontal[r][c] = val
+            horizontal[r][sc] = val
+
+    vertical = edges["vertical"]
+    for r in range(size.rows):
+        for c in range(size.cols + 1):
+            sc = size.cols - c
+            val = vertical[r][c] or vertical[r][sc]
+            vertical[r][c] = val
+            vertical[r][sc] = val
+
+
 def _count_edges(edges: Dict[str, List[List[bool]]]) -> int:
     """True の数を数えてループ長を求める"""
     return sum(sum(row) for row in edges["horizontal"]) + sum(
@@ -160,6 +204,8 @@ __all__ = [
     "_create_empty_edges",
     "_generate_random_loop",
     "_apply_rotational_symmetry",
+    "_apply_vertical_symmetry",
+    "_apply_horizontal_symmetry",
     "_count_edges",
     "_calculate_curve_ratio",
 ]

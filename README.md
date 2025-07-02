@@ -44,7 +44,9 @@ puzzle_sym = generator.generate_puzzle(
 )
 ```
 
-`symmetry` を `"rotational"` にすると、`solutionEdges` が 180 度回転しても同じ形になるよう調整されます。
+`symmetry` には `"rotational"` (180 度回転) に加えて `"vertical"` (上下反転)
+と `"horizontal"` (左右反転) を指定できます。指定した軸で対称となるよう
+`solutionEdges` を補正します。
 
 ### スクリプトとして実行する
 
@@ -61,7 +63,8 @@ python src/generator.py 4 4 --difficulty normal
 - `rows` : 盤面の行数。必須の数値です。
 - `cols` : 盤面の列数。必須の数値です。
 - `--difficulty` : 難易度ラベル。`easy` / `normal` / `hard` / `expert` から選択。省略すると `easy`。
-- `--symmetry` : `rotational` を指定すると盤面を 180 度回転対称にします。
+- `--symmetry` : `rotational`, `vertical`, `horizontal` のいずれかを指定すると
+  回転対称・上下対称・左右対称の盤面を生成します。
 - `--theme` : `border` を指定すると外周のみを使った盤面を生成します。
 - `--seed` : 乱数シード。再現したいときに数値を指定します。
 - `--timeout` : 生成処理のタイムアウト秒数。指定しない場合は無制限。
