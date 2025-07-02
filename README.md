@@ -95,6 +95,10 @@ python -m src.bulk_generator 4 4 2
 ```bash
 pytest
 ```
+長時間かかるテストには `@pytest.mark.slow` を付けてあります。高速に実行したい場合は `-m "not slow"` を付けて実行してください。
+```bash
+pytest -m "not slow"
+```
 
 ## 6. 参考資料
 

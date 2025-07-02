@@ -12,6 +12,7 @@ from src import validator  # noqa: E402
 from src import solver  # noqa: E402
 
 
+@pytest.mark.slow
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
     puzzle = generator.generate_puzzle(4, 4, seed=0)
     # JSON に変換できるか確認
@@ -43,6 +44,7 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
     assert loaded["difficulty"] == "normal"
 
 
+@pytest.mark.slow
 def test_save_puzzle(tmp_path: Path) -> None:
     puzzle = generator.generate_puzzle(4, 4, difficulty="easy", seed=1)
     path = puzzle_io.save_puzzle(puzzle, directory=tmp_path)
@@ -53,12 +55,14 @@ def test_save_puzzle(tmp_path: Path) -> None:
     assert "solverStats" in data
 
 
+@pytest.mark.slow
 def test_validate_puzzle() -> None:
     puzzle = generator.generate_puzzle(4, 4, seed=0)
     # エラーが出ないことを確認
     validator.validate_puzzle(puzzle)
 
 
+@pytest.mark.slow
 def test_validate_puzzle_fail() -> None:
     puzzle = generator.generate_puzzle(4, 4, seed=3)
     # ループに含まれる辺を一つ壊して検証エラーを期待
@@ -77,6 +81,7 @@ def test_validate_puzzle_fail() -> None:
         validator.validate_puzzle(puzzle)
 
 
+@pytest.mark.slow
 def test_zero_adjacent_fail() -> None:
     puzzle = generator.generate_puzzle(3, 3, difficulty="easy", seed=4)
     # 0 を縦に並べて検証エラーを期待
@@ -86,6 +91,7 @@ def test_zero_adjacent_fail() -> None:
         validator.validate_puzzle(puzzle)
 
 
+@pytest.mark.slow
 def test_generate_multiple_and_save(tmp_path: Path) -> None:
     puzzles = generator.generate_multiple_puzzles(3, 3, count_each=1, seed=5)
     assert len(puzzles) == 4
@@ -106,11 +112,13 @@ def test_puzzle_to_ascii() -> None:
     assert "+" in lines[0]
 
 
+@pytest.mark.slow
 def test_generate_puzzle_symmetry() -> None:
     puzzle = generator.generate_puzzle(4, 4, symmetry="rotational", seed=7)
     assert puzzle["symmetry"] == "rotational"
 
 
+@pytest.mark.slow
 def test_generate_puzzle_parallel() -> None:
     puzzle = generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
     validator.validate_puzzle(puzzle)
@@ -131,6 +139,7 @@ def test_generation_params_and_seedhash() -> None:
     assert puzzle["seedHash"] == hashlib.sha256(b"42").hexdigest()
 
 
+@pytest.mark.slow
 def test_count_solutions_unique() -> None:
     puzzle = generator.generate_puzzle(3, 3, seed=9)
     size = solver.PuzzleSize(3, 3)
