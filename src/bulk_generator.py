@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import argparse
+from typing import TYPE_CHECKING
 
-try:
-    # パッケージ実行時は相対インポート
-    from .generator import generate_multiple_puzzles, puzzle_to_ascii, setup_logging
-    from .puzzle_io import save_puzzles
-except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
-    # スクリプトとして直接実行されたときは同じディレクトリからインポートする
-    from generator import generate_multiple_puzzles, puzzle_to_ascii, setup_logging
-    from puzzle_io import save_puzzles
+if TYPE_CHECKING:
+    from src.generator import generate_multiple_puzzles, puzzle_to_ascii, setup_logging
+    from src.puzzle_io import save_puzzles
+else:
+    try:
+        # パッケージ実行時は相対インポート
+        from .generator import generate_multiple_puzzles, puzzle_to_ascii, setup_logging
+        from .puzzle_io import save_puzzles
+    except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+        # スクリプトとして直接実行されたときは同じディレクトリからインポートする
+        from generator import generate_multiple_puzzles, puzzle_to_ascii, setup_logging
+        from puzzle_io import save_puzzles
 
 
 # コマンドラインから実行される関数
