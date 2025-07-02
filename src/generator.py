@@ -499,12 +499,15 @@ def generate_puzzle_parallel(
     timeout_s: float | None = None,
     return_stats: bool = False,
     jobs: int | None = None,
+    worker_log_level: int = logging.WARNING,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
     """複数プロセスで ``generate_puzzle`` を試行して最初の結果を返す
 
     :param theme: 盤面のテーマを指定する文字列
     :param solver_step_limit: ソルバー探索の最大ステップ数
     :param timeout_s: 生成処理のタイムアウト秒数
+    :param worker_log_level: 並列処理のログレベル。デフォルトでは WARNING
+        以上のみ表示する
     """
 
     # 初期シードに ``seed`` を使い、プロセス番号でシードをずらして実行する
@@ -515,7 +518,11 @@ def generate_puzzle_parallel(
 
     base_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as executor:
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=jobs,
+        initializer=setup_logging,
+        initargs=(worker_log_level,),
+    ) as executor:
         futures = [
             executor.submit(
                 generate_puzzle,
@@ -551,6 +558,7 @@ def generate_multiple_puzzles(
     *,
     seed: int | None = None,
     jobs: int | None = None,
+    worker_log_level: int = logging.WARNING,
 ) -> List[Puzzle]:
     """各難易度を同数生成して一覧で返す
 
@@ -558,6 +566,7 @@ def generate_multiple_puzzles(
     :param cols: 盤面の列数
     :param count_each: 各難易度の生成数
     :param seed: 乱数シード。再現したいときに指定する
+    :param worker_log_level: 並列処理のログレベル。WARNING 以上のみ表示する
     """
 
     if count_each <= 0:
@@ -603,7 +612,11 @@ def generate_multiple_puzzles(
         else:
             base_seed = seed
         futures = []
-        with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as executor:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=jobs,
+            initializer=setup_logging,
+            initargs=(worker_log_level,),
+        ) as executor:
             for difficulty in sorted(ALLOWED_DIFFICULTIES):
                 for _ in range(count_each):
                     puzzle_seed = base_seed + seed_offset
@@ -728,6 +741,7 @@ if __name__ == "__main__":
             solver_step_limit=args.step_limit,
             timeout_s=args.timeout,
             jobs=args.parallel,
+            worker_log_level=logging.WARNING,
         )
     else:
         pzl_obj = generate_puzzle(
