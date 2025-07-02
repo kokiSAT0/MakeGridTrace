@@ -154,7 +154,6 @@ def test_puzzle_to_ascii() -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(reason="rotational generation is unstable")
 def test_generate_puzzle_symmetry() -> None:
     puzzle = cast(
         Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="rotational", seed=7)
@@ -165,7 +164,6 @@ def test_generate_puzzle_symmetry() -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(reason="rotational generation is unstable")
 def test_solution_edges_rotational() -> None:
     puzzle = cast(
         Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="rotational", seed=42)
@@ -193,7 +191,6 @@ def test_solution_edges_rotational() -> None:
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(reason="symmetry generation is unstable")
 def test_solution_edges_vertical() -> None:
     puzzle = cast(
         Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="vertical", seed=101)
