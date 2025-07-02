@@ -223,10 +223,12 @@ MIN_HINT_RATIO = {
 }
 
 # 生成失敗時に何回まで再試行するか
-RETRY_LIMIT = 3
+# リトライ回数を増やしてヒント削減に失敗しにくくする
+RETRY_LIMIT = 5
 
 # ソルバーが探索する最大ステップ数。超えると途中で打ち切る
-MAX_SOLVER_STEPS = 100000
+# ソルバーのステップ上限を増加させて解の探索精度を向上させる
+MAX_SOLVER_STEPS = 500000
 
 
 def _evaluate_difficulty(steps: int, depth: int) -> str:
@@ -339,10 +341,13 @@ def _count_solutions(
                     horizontal[r][c] = True
                 else:
                     vertical[r][c] = True
+            # 検証のために cluesFull を含むパズルオブジェクトを作成
+            clues_full = _calculate_clues({"horizontal": horizontal, "vertical": vertical}, size)
             puzzle = {
                 "size": {"rows": size.rows, "cols": size.cols},
                 "solutionEdges": {"horizontal": horizontal, "vertical": vertical},
                 "clues": clues,
+                "cluesFull": clues_full,
             }
             try:
                 validate_puzzle(puzzle)
@@ -424,7 +429,7 @@ def _reduce_clues(
         hint_count = sum(1 for row in result for v in row if v is not None)
         if (
             hint_count < min_hint
-            or _count_solutions(result, size, limit=2, step_limit=10000) != 1
+            or _count_solutions(result, size, limit=2, step_limit=MAX_SOLVER_STEPS) != 1
         ):
             result[r][c] = original
 
