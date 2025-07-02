@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+# datetime モジュールから UTC 定数も合わせてインポート
+from datetime import datetime, UTC
 import math
 import random
 from typing import Any, Dict, List, Optional
@@ -87,7 +88,8 @@ def _build_puzzle_dict(
 ) -> Puzzle:
     """パズル用の辞書オブジェクトを構築するヘルパー関数"""
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    # timezone-aware な UTC 時刻を取得する
+    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     qs = _calculate_quality_score(clues, curve_ratio, solver_stats["steps"])
     puzzle: Puzzle = {
         "schemaVersion": SCHEMA_VERSION,
@@ -111,7 +113,8 @@ def _build_puzzle_dict(
         "seedHash": seed_hash,
         "qualityScore": qs,
         "createdBy": "auto-gen-v1",
-        "createdAt": datetime.utcnow().date().isoformat(),
+        # ISO8601 形式の UTC 日付文字列を保存
+        "createdAt": datetime.now(UTC).date().isoformat(),
         "partial": partial,
     }
     return puzzle

@@ -332,10 +332,14 @@ def generate_puzzle_parallel(
     difficulty: str = "normal",
     seed: int | None = None,
     symmetry: Optional[str] = None,
+    theme: Optional[str] = None,
     return_stats: bool = False,
     jobs: int | None = None,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
-    """複数プロセスで generate_puzzle を試行して最初の結果を返す"""
+    """複数プロセスで ``generate_puzzle`` を試行して最初の結果を返す
+
+    :param theme: 盤面のテーマを指定する文字列
+    """
 
     # 初期シードに ``seed`` を使い、プロセス番号でシードをずらして実行する
     # ``jobs`` が ``None`` の場合は CPU コア数を利用する
@@ -354,6 +358,7 @@ def generate_puzzle_parallel(
                 difficulty=difficulty,
                 seed=base_seed + i,
                 symmetry=symmetry,
+                theme=theme,
                 return_stats=return_stats,
             )
             for i in range(jobs)
@@ -467,6 +472,11 @@ if __name__ == "__main__":
         choices=["rotational"],
         help="回転対称にしたい場合に指定",
     )
+    parser.add_argument(
+        "--theme",
+        choices=["border"],
+        help="盤面のテーマを指定",
+    )
     parser.add_argument("--seed", type=int, default=None, help="乱数シード")
     parser.add_argument(
         "--timeout",
@@ -489,6 +499,7 @@ if __name__ == "__main__":
             difficulty=args.difficulty,
             seed=args.seed,
             symmetry=args.symmetry,
+            theme=args.theme,
             timeout_s=args.timeout,
             jobs=args.parallel,
         )
@@ -499,6 +510,7 @@ if __name__ == "__main__":
             difficulty=args.difficulty,
             seed=args.seed,
             symmetry=args.symmetry,
+            theme=args.theme,
             timeout_s=args.timeout,
         )
     pzl = cast(Puzzle, pzl_obj)
