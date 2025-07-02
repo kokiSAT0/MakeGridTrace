@@ -103,6 +103,7 @@ def test_generator_zero_not_adjacent() -> None:
     assert not validator._has_zero_adjacent(puzzle["cluesFull"])
 
 
+@pytest.mark.slow
 def test_generate_multiple_and_save(tmp_path: Path) -> None:
     puzzles = generator.generate_multiple_puzzles(3, 3, count_each=1, seed=5)
     assert len(puzzles) == 4
@@ -125,6 +126,7 @@ def test_puzzle_to_ascii() -> None:
     assert "+" in lines[0]
 
 
+@pytest.mark.slow
 def test_generate_puzzle_symmetry() -> None:
     puzzle = cast(
         Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="rotational", seed=7)
@@ -132,6 +134,7 @@ def test_generate_puzzle_symmetry() -> None:
     assert puzzle["symmetry"] == "rotational"
 
 
+@pytest.mark.slow
 def test_solution_edges_rotational() -> None:
     puzzle = cast(
         Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="rotational", seed=42)
@@ -156,6 +159,7 @@ def test_solution_edges_rotational() -> None:
             assert vertical[r][c] == vertical[sr][sc]
 
 
+@pytest.mark.slow
 def test_generate_puzzle_parallel() -> None:
     puzzle = cast(
         Dict[str, Any], generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
@@ -163,6 +167,7 @@ def test_generate_puzzle_parallel() -> None:
     validator.validate_puzzle(puzzle)
 
 
+@pytest.mark.slow
 def test_generation_params_and_seedhash() -> None:
     puzzle = cast(
         Dict[str, Any],
@@ -181,6 +186,7 @@ def test_generation_params_and_seedhash() -> None:
     assert puzzle["seedHash"] == hashlib.sha256(b"42").hexdigest()
 
 
+@pytest.mark.slow
 def test_count_solutions_unique() -> None:
     puzzle = cast(Dict[str, Any], generator.generate_puzzle(3, 3, seed=9))
     size = solver.PuzzleSize(3, 3)

@@ -104,6 +104,10 @@ python -m src.bulk_generator 4 4 2
 ```bash
 pytest
 ```
+時間の掛かるテストを除外して素早く確認したい場合は、以下のように `-m "not slow"` を付けます。
+```bash
+pytest -m "not slow"
+```
 
 ## 6. 参考資料
 
