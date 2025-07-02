@@ -204,8 +204,13 @@ def generate_puzzle(
         )
 
         # 生成した結果が仕様を満たすか簡易チェック
-        if symmetry != "rotational":
+        try:
             validate_puzzle(puzzle)
+        except ValueError as exc:
+            # 検証に失敗した場合は再試行
+            logger.warning("検証失敗: %s", exc)
+            last_edges = edges
+            continue
 
         stats = {
             "loop_length": loop_length,
@@ -248,8 +253,8 @@ def generate_puzzle(
             generation_params=generation_params,
             seed_hash=seed_hash,
         )
-        if symmetry != "rotational":
-            validate_puzzle(puzzle)
+        # フォールバック結果でも必ず検証を行う
+        validate_puzzle(puzzle)
         stats = {
             "loop_length": _count_edges(last_edges),
             "hint_count": sum(1 for row in clues_all for v in row if v is not None),
