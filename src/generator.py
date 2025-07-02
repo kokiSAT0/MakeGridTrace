@@ -252,8 +252,10 @@ def _count_solutions(
 ) -> int | tuple[int, Dict[str, int]]:
     """バックトラックで解の個数を数える簡易ソルバー
 
-    :param return_stats: True のとき解析ステップ数などを返す
-    :param step_limit: ステップ数の上限。None なら制限なし
+    :param return_stats: ``True`` のとき探索統計を ``dict`` で返す
+    :param step_limit: 解析ステップ数の上限。``None`` なら制限なし
+    :return: 解の個数。``return_stats`` が ``True`` の場合は
+        ``(解数, {"steps": int, "max_depth": int})`` の形式で返す
     """
 
     if step_limit is None and return_stats:
@@ -446,6 +448,12 @@ def generate_puzzle(
     :param seed: 乱数シード。再現したいときに指定する
     :param symmetry: 回転対称を指定する場合は "rotational"
     :param return_stats: True なら生成統計も返す
+    :return: 生成したパズル。``return_stats`` が True の場合は
+        ``(Puzzle, dict)`` のタプルを返す
+
+    生成結果の ``solverStats`` フィールドには、
+    ソルバーが使った探索ステップ数 (``steps``) と
+    最大探索深さ (``maxDepth``) を記録します。
     """
 
     if difficulty not in ALLOWED_DIFFICULTIES:
@@ -532,6 +540,11 @@ def generate_puzzle(
             "clues": clues,
             "solutionEdges": edges,
             "loopStats": {"length": loop_length, "curveRatio": curve_ratio},
+            # ソルバーの解析統計を JSON に含める
+            "solverStats": {
+                "steps": solver_stats["steps"],
+                "maxDepth": solver_stats["max_depth"],
+            },
             "difficulty": difficulty,
             "difficultyEval": _evaluate_difficulty(
                 solver_stats["steps"], solver_stats["max_depth"]
@@ -587,6 +600,10 @@ def generate_puzzle(
             "loopStats": {
                 "length": _count_edges(last_edges),
                 "curveRatio": curve_ratio_fb,
+            },
+            "solverStats": {
+                "steps": solver_stats["steps"],
+                "maxDepth": solver_stats["max_depth"],
             },
             "difficulty": difficulty,
             "difficultyEval": _evaluate_difficulty(
