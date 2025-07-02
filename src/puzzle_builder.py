@@ -33,14 +33,18 @@ def _evaluate_difficulty(steps: int, depth: int) -> str:
 def _reduce_clues(
     clues: List[List[int]],
     size: PuzzleSize,
+    rng: random.Random,
     *,
     min_hint: int,
 ) -> List[List[int | None]]:
-    """ヒントをランダムに削減して一意性を保つ"""
+    """ヒントをランダムに削減して一意性を保つ
+
+    :param rng: 乱数生成に利用する ``random.Random`` インスタンス
+    """
 
     result: List[List[int | None]] = [[v for v in row] for row in clues]
     cells = [(r, c) for r in range(size.rows) for c in range(size.cols)]
-    random.shuffle(cells)
+    rng.shuffle(cells)
 
     for r, c in cells:
         if result[r][c] is None:

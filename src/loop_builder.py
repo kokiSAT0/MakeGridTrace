@@ -15,8 +15,13 @@ def _create_empty_edges(size: PuzzleSize) -> Dict[str, List[List[bool]]]:
     return {"horizontal": horizontal, "vertical": vertical}
 
 
-def _generate_random_loop(edges: Dict[str, List[List[bool]]], size: PuzzleSize) -> None:
-    """バックトラックでランダムなループを生成する"""
+def _generate_random_loop(
+    edges: Dict[str, List[List[bool]]], size: PuzzleSize, rng: random.Random
+) -> None:
+    """バックトラックでランダムなループを生成する
+
+    :param rng: 乱数生成に利用する ``random.Random`` インスタンス
+    """
 
     degrees = [[0 for _ in range(size.cols + 1)] for _ in range(size.rows + 1)]
 
@@ -59,14 +64,14 @@ def _generate_random_loop(edges: Dict[str, List[List[bool]]], size: PuzzleSize) 
 
     min_len = max(2 * (size.rows + size.cols), 4)
 
-    start = (random.randint(0, size.rows), random.randint(0, size.cols))
+    start = (rng.randint(0, size.rows), rng.randint(0, size.cols))
     path: list[tuple[int, int]] = [start]
 
     def dfs(current: tuple[int, int]) -> bool:
         if len(path) >= min_len and current == start and len(path) > 1:
             return True
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-        random.shuffle(directions)
+        rng.shuffle(directions)
         for dr, dc in directions:
             nr, nc = current[0] + dr, current[1] + dc
             if not (0 <= nr <= size.rows and 0 <= nc <= size.cols):
