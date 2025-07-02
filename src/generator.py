@@ -11,6 +11,8 @@ import concurrent.futures
 import hashlib
 from typing import Any, Dict, List, Optional, cast, TYPE_CHECKING
 
+from .types import Puzzle
+
 if TYPE_CHECKING:
     from src.solver import PuzzleSize, calculate_clues, count_solutions
 else:
@@ -41,8 +43,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-Puzzle = Dict[str, Any]
 
 # JSON スキーマのバージョン
 SCHEMA_VERSION = "2.0"

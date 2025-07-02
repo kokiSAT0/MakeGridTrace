@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import argparse
 
-from .generator import generate_multiple_puzzles, save_puzzles, puzzle_to_ascii
+from .generator import generate_multiple_puzzles, puzzle_to_ascii
+from .puzzle_io import save_puzzles
 
 
 # コマンドラインから実行される関数

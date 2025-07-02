@@ -5,10 +5,7 @@ from __future__ import annotations
 
 from .solver import PuzzleSize, calculate_clues
 from .loop_builder import _calculate_curve_ratio
-from typing import Any, Dict
-
-# generator との循環参照を避けるため型エイリアスのみ定義
-Puzzle = Dict[str, Any]
+from .types import Puzzle
 
 
 def validate_puzzle(puzzle: Puzzle) -> None:
