@@ -85,3 +85,8 @@ def test_puzzle_to_ascii() -> None:
     assert len(lines) == 5
     # 1 行目には "+" 記号が含まれる
     assert "+" in lines[0]
+
+
+def test_generate_puzzle_symmetry() -> None:
+    puzzle = generator.generate_puzzle(4, 4, symmetry="rotational")
+    assert puzzle["symmetry"] == "rotational"

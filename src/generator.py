@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 import json
 import random
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, cast
 
 
 logging.basicConfig(
@@ -127,6 +127,32 @@ def _generate_random_loop(edges: Dict[str, List[List[bool]]], size: PuzzleSize) 
         for r in range(size.rows):
             edges["vertical"][r][0] = True
             edges["vertical"][r][size.cols] = True
+
+
+def _apply_rotational_symmetry(
+    edges: Dict[str, List[List[bool]]], size: PuzzleSize
+) -> None:
+    """180 度回転対称になるよう辺情報を補正する関数"""
+
+    # 水平線を対称位置へコピーする
+    horizontal = edges["horizontal"]
+    for r in range(size.rows + 1):
+        for c in range(size.cols):
+            sr = size.rows - r
+            sc = size.cols - c - 1
+            val = horizontal[r][c] or horizontal[sr][sc]
+            horizontal[r][c] = val
+            horizontal[sr][sc] = val
+
+    # 垂直線も同様に処理する
+    vertical = edges["vertical"]
+    for r in range(size.rows):
+        for c in range(size.cols + 1):
+            sr = size.rows - r - 1
+            sc = size.cols - c
+            val = vertical[r][c] or vertical[sr][sc]
+            vertical[r][c] = val
+            vertical[sr][sc] = val
 
 
 def _calculate_clues(
@@ -384,8 +410,7 @@ def _reduce_clues(
     clues: List[List[int]], size: PuzzleSize, *, min_hint: int
 ) -> List[List[int | None]]:
     """ヒントをランダムに削減して一意性を保つ"""
-
-    result = [[v for v in row] for row in clues]
+    result: List[List[int | None]] = [[v for v in row] for row in clues]
     cells = [(r, c) for r in range(size.rows) for c in range(size.cols)]
     random.shuffle(cells)
 
@@ -410,6 +435,7 @@ def generate_puzzle(
     difficulty: str = "normal",
     *,
     seed: int | None = None,
+    symmetry: Optional[str] = None,
     return_stats: bool = False,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
     """簡易な盤面を生成して返す
@@ -418,6 +444,7 @@ def generate_puzzle(
     :param cols: 盤面の列数
     :param difficulty: 難易度ラベル
     :param seed: 乱数シード。再現したいときに指定する
+    :param symmetry: 回転対称を指定する場合は "rotational"
     :param return_stats: True なら生成統計も返す
     """
 
@@ -469,17 +496,29 @@ def generate_puzzle(
             logger.warning("0 が隣接したため再試行します")
             continue
 
-        sol_result = _count_solutions(
-            clues, size, limit=2, return_stats=True, step_limit=MAX_SOLVER_STEPS
+        solutions, solver_stats = cast(
+            tuple[int, Dict[str, int]],
+            _count_solutions(
+                clues,
+                size,
+                limit=2,
+                return_stats=True,
+                step_limit=MAX_SOLVER_STEPS,
+            ),
         )
-        solutions, solver_stats = sol_result
         if solutions != 1:
             logger.warning("解が一意でないためヒントを再計算します")
-            clues = clues_all
-            sol_result = _count_solutions(
-                clues, size, limit=2, return_stats=True, step_limit=MAX_SOLVER_STEPS
+            clues = cast(List[List[int | None]], [row[:] for row in clues_all])
+            solutions, solver_stats = cast(
+                tuple[int, Dict[str, int]],
+                _count_solutions(
+                    clues,
+                    size,
+                    limit=2,
+                    return_stats=True,
+                    step_limit=MAX_SOLVER_STEPS,
+                ),
             )
-            solutions, solver_stats = sol_result
             if solutions != 1:
                 logger.warning("再試行します")
                 last_edges = edges
@@ -497,6 +536,7 @@ def generate_puzzle(
             "difficultyEval": _evaluate_difficulty(
                 solver_stats["steps"], solver_stats["max_depth"]
             ),
+            "symmetry": symmetry,
             "createdBy": "auto-gen-v1",
             "createdAt": datetime.utcnow().date().isoformat(),
         }
@@ -527,10 +567,16 @@ def generate_puzzle(
                         raise ValueError("0 が縦に隣接しています")
                     if cc + 1 < size.cols and clues_all[rr][cc + 1] == 0:
                         raise ValueError("0 が横に隣接しています")
-        sol_result = _count_solutions(
-            clues_all, size, limit=2, return_stats=True, step_limit=MAX_SOLVER_STEPS
+        _, solver_stats = cast(
+            tuple[int, Dict[str, int]],
+            _count_solutions(
+                cast(List[List[int | None]], [row[:] for row in clues_all]),
+                size,
+                limit=2,
+                return_stats=True,
+                step_limit=MAX_SOLVER_STEPS,
+            ),
         )
-        _, solver_stats = sol_result
         timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         puzzle = {
             "schemaVersion": SCHEMA_VERSION,
@@ -546,6 +592,7 @@ def generate_puzzle(
             "difficultyEval": _evaluate_difficulty(
                 solver_stats["steps"], solver_stats["max_depth"]
             ),
+            "symmetry": symmetry,
             "createdBy": "auto-gen-v1",
             "createdAt": datetime.utcnow().date().isoformat(),
         }
@@ -612,9 +659,10 @@ def generate_multiple_puzzles(
     for difficulty in sorted(ALLOWED_DIFFICULTIES):
         for _ in range(count_each):
             puzzle_seed = None if seed is None else seed + seed_offset
-            puzzles.append(
-                generate_puzzle(rows, cols, difficulty=difficulty, seed=puzzle_seed)
+            puzzle_obj = generate_puzzle(
+                rows, cols, difficulty=difficulty, seed=puzzle_seed
             )
+            puzzles.append(cast(Puzzle, puzzle_obj))
             seed_offset += 1
 
     logger.info("複数盤面生成終了: %.3f 秒", time.perf_counter() - start_time)
@@ -791,9 +839,34 @@ def puzzle_to_ascii(puzzle: Puzzle) -> str:
 
 
 if __name__ == "__main__":
-    # 実行例：生成したパズルを保存
-    pzl = generate_puzzle(4, 4, difficulty="easy")
+    import argparse
+
+    # コマンドライン引数を受け取る
+    parser = argparse.ArgumentParser(description="スリザーリンク盤面を生成します")
+    parser.add_argument("rows", type=int, help="盤面の行数")
+    parser.add_argument("cols", type=int, help="盤面の列数")
+    parser.add_argument(
+        "--difficulty",
+        choices=sorted(ALLOWED_DIFFICULTIES),
+        default="easy",
+        help="難易度ラベル",
+    )
+    parser.add_argument(
+        "--symmetry",
+        choices=["rotational"],
+        help="回転対称にしたい場合に指定",
+    )
+    parser.add_argument("--seed", type=int, default=None, help="乱数シード")
+    args = parser.parse_args()
+
+    pzl_obj = generate_puzzle(
+        args.rows,
+        args.cols,
+        difficulty=args.difficulty,
+        seed=args.seed,
+        symmetry=args.symmetry,
+    )
+    pzl = cast(Puzzle, pzl_obj)
     path = save_puzzle(pzl)
     print(f"{path} を作成しました")
-    # 生成した盤面を ASCII で表示
     print(puzzle_to_ascii(pzl))
