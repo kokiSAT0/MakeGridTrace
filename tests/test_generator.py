@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
 from src import generator  # noqa: E402
 from src import solver  # noqa: E402
+from src import validator  # noqa: E402
 
 
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
@@ -45,7 +46,7 @@ def test_save_puzzle(tmp_path: Path) -> None:
 def test_validate_puzzle() -> None:
     puzzle = generator.generate_puzzle(4, 4, seed=0)
     # エラーが出ないことを確認
-    generator.validate_puzzle(puzzle)
+    validator.validate_puzzle(puzzle)
 
 
 def test_validate_puzzle_fail() -> None:
@@ -63,7 +64,7 @@ def test_validate_puzzle_fail() -> None:
     if not broken:
         puzzle["solutionEdges"]["vertical"][0][0] = False
     with pytest.raises(ValueError):
-        generator.validate_puzzle(puzzle)
+        validator.validate_puzzle(puzzle)
 
 
 def test_zero_adjacent_fail() -> None:
@@ -72,7 +73,7 @@ def test_zero_adjacent_fail() -> None:
     puzzle["cluesFull"][0][0] = 0
     puzzle["cluesFull"][1][0] = 0
     with pytest.raises(ValueError):
-        generator.validate_puzzle(puzzle)
+        validator.validate_puzzle(puzzle)
 
 
 def test_generate_multiple_and_save(tmp_path: Path) -> None:
@@ -102,7 +103,7 @@ def test_generate_puzzle_symmetry() -> None:
 
 def test_generate_puzzle_parallel() -> None:
     puzzle = generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
-    generator.validate_puzzle(puzzle)
+    validator.validate_puzzle(puzzle)
 
 
 def test_count_solutions_unique() -> None:

@@ -106,6 +106,8 @@ def calculate_clues(
     return clues
 
 
+from . import validator  # noqa: E402
+
 # 外部から呼び出す関数名は count_solutions とする
 
 
@@ -160,7 +162,6 @@ def count_solutions(
                 else:
                     vertical[e.r][e.c] = True
             # 検証のために cluesFull を含むパズルオブジェクトを作成
-            from . import generator as _gen  # 循環インポート回避のため
 
             clues_full = calculate_clues(
                 {"horizontal": horizontal, "vertical": vertical}, size
@@ -172,7 +173,7 @@ def count_solutions(
                 "cluesFull": clues_full,
             }
             try:
-                _gen.validate_puzzle(puzzle)
+                validator.validate_puzzle(puzzle)
             except ValueError:
                 return
             solutions += 1

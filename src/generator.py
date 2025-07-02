@@ -19,6 +19,11 @@ except ImportError:  # pragma: no cover - スクリプト実行時のフォー�
     # スクリプトとして直接実行されたときは同じディレクトリからインポートする
     from solver import PuzzleSize, calculate_clues, count_solutions
 
+try:
+    from . import validator
+except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+    import validator
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -399,7 +404,7 @@ def generate_puzzle(
         )
 
         # 生成した結果が仕様を満たすか簡易チェック
-        validate_puzzle(puzzle)
+        validator.validate_puzzle(puzzle)
 
         stats = {
             "loop_length": loop_length,
@@ -445,7 +450,7 @@ def generate_puzzle(
             solver_stats=solver_stats,
             symmetry=symmetry,
         )
-        validate_puzzle(puzzle)
+        validator.validate_puzzle(puzzle)
         stats = {
             "loop_length": _count_edges(last_edges),
             "hint_count": sum(1 for row in clues_all for v in row if v is not None),
@@ -583,138 +588,6 @@ def save_puzzles(puzzles: List[Puzzle], directory: str | Path = "data") -> Path:
         json.dump(puzzles, fp, ensure_ascii=False, indent=2)
     logger.info("複数パズルを保存しました: %s", file_path)
     return file_path
-
-
-def validate_puzzle(puzzle: Puzzle) -> None:
-    """パズルデータの整合性を簡易チェックする関数
-
-    H-7 ループ長、H-8 0 の隣接禁止、H-9 曲率比率を含む
-    """
-
-    # size フィールドの検証
-    size_dict = puzzle.get("size")
-    if not isinstance(size_dict, dict):
-        raise ValueError("size フィールドが存在しません")
-    size = PuzzleSize(rows=size_dict["rows"], cols=size_dict["cols"])
-
-    edges = puzzle.get("solutionEdges")
-    if not isinstance(edges, dict):
-        raise ValueError("solutionEdges フィールドが存在しません")
-
-    horizontal = edges.get("horizontal")
-    vertical = edges.get("vertical")
-    if (
-        not isinstance(horizontal, list)
-        or not isinstance(vertical, list)
-        or len(horizontal) != size.rows + 1
-        or len(vertical) != size.rows
-    ):
-        raise ValueError("solutionEdges のサイズが盤面サイズと一致しません")
-
-    for row in horizontal:
-        if len(row) != size.cols:
-            raise ValueError("horizontal 配列の列数が不正です")
-    for row in vertical:
-        if len(row) != size.cols + 1:
-            raise ValueError("vertical 配列の列数が不正です")
-
-    # ループ条件の確認
-    edge_count = 0
-    degrees = [[0 for _ in range(size.cols + 1)] for _ in range(size.rows + 1)]
-
-    for r in range(size.rows + 1):
-        for c in range(size.cols):
-            if horizontal[r][c]:
-                edge_count += 1
-                degrees[r][c] += 1
-                degrees[r][c + 1] += 1
-    for r in range(size.rows):
-        for c in range(size.cols + 1):
-            if vertical[r][c]:
-                edge_count += 1
-                degrees[r][c] += 1
-                degrees[r + 1][c] += 1
-
-    start = None
-    for r in range(size.rows + 1):
-        for c in range(size.cols + 1):
-            d = degrees[r][c]
-            if d not in (0, 2):
-                raise ValueError("ループが分岐または交差しています")
-            if d == 2 and start is None:
-                start = (r, c)
-
-    if start is None:
-        raise ValueError("ループが存在しません")
-
-    # BFS でループの連結性を確認
-    visited_edges: set[tuple[tuple[int, int], tuple[int, int]]] = set()
-    queue = [start]
-    visited_vertices = {start}
-
-    def neighbors(r: int, c: int) -> list[tuple[int, int]]:
-        result = []
-        if c < size.cols and horizontal[r][c]:
-            result.append((r, c + 1))
-        if c > 0 and horizontal[r][c - 1]:
-            result.append((r, c - 1))
-        if r < size.rows and vertical[r][c]:
-            result.append((r + 1, c))
-        if r > 0 and vertical[r - 1][c]:
-            result.append((r - 1, c))
-        return result
-
-    while queue:
-        r, c = queue.pop(0)
-        for nr, nc in neighbors(r, c):
-            if (r, c) <= (nr, nc):
-                edge = ((r, c), (nr, nc))
-            else:
-                edge = ((nr, nc), (r, c))
-            if edge not in visited_edges:
-                visited_edges.add(edge)
-                if (nr, nc) not in visited_vertices:
-                    visited_vertices.add((nr, nc))
-                    queue.append((nr, nc))
-
-    if len(visited_edges) != edge_count:
-        raise ValueError("ループが複数存在する可能性があります")
-
-    # ハード制約 H-7: ループ長下限チェック
-    # 辺の数が 2 * (rows + cols) 未満なら盤面外周だけをなぞる短すぎるループとみなす
-    if edge_count < 2 * (size.rows + size.cols):
-        raise ValueError("ループ長がハード制約を満たしていません")
-
-    # ヒント数字の整合をチェック
-    clues_full = puzzle.get("cluesFull")
-    if not isinstance(clues_full, list):
-        raise ValueError("cluesFull フィールドが存在しません")
-    calculated = calculate_clues(edges, size)
-    if clues_full != calculated:
-        raise ValueError("cluesFull が solutionEdges と一致しません")
-
-    clues = puzzle.get("clues")
-    if not isinstance(clues, list):
-        raise ValueError("clues フィールドが存在しません")
-    for r in range(size.rows):
-        for c in range(size.cols):
-            val = clues[r][c]
-            if val is not None and val != clues_full[r][c]:
-                raise ValueError("clues が cluesFull と一致しません")
-
-    # ハード制約 H-8: 0 の隣接禁止をチェック
-    for r in range(size.rows):
-        for c in range(size.cols):
-            if clues_full[r][c] == 0:
-                if r + 1 < size.rows and clues_full[r + 1][c] == 0:
-                    raise ValueError("0 が縦に隣接しています")
-                if c + 1 < size.cols and clues_full[r][c + 1] == 0:
-                    raise ValueError("0 が横に隣接しています")
-
-    # ハード制約 H-9: 線カーブ比率下限チェック
-    curve_ratio = _calculate_curve_ratio(edges, size)
-    if curve_ratio < 0.15:
-        raise ValueError("線カーブ比率がハード制約を満たしていません")
 
 
 def puzzle_to_ascii(puzzle: Puzzle) -> str:
