@@ -32,7 +32,7 @@ from .loop_builder import (
     _calculate_curve_ratio,
 )
 from .puzzle_io import save_puzzle
-from .validator import validate_puzzle
+from .validator import validate_puzzle, _has_zero_adjacent
 
 
 logging.basicConfig(
@@ -215,17 +215,10 @@ def generate_puzzle(
         min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
         clues = _reduce_clues(clues_all, size, min_hint=min_hint)
 
-        def zero_adjacent(cl: List[List[int | None]]) -> bool:
-            for rr in range(size.rows):
-                for cc in range(size.cols):
-                    if cl[rr][cc] == 0:
-                        if rr + 1 < size.rows and cl[rr + 1][cc] == 0:
-                            return True
-                        if cc + 1 < size.cols and cl[rr][cc + 1] == 0:
-                            return True
-            return False
-
-        if zero_adjacent(clues):
+        # 0 が縦横に並んでいないか確認
+        if _has_zero_adjacent(
+            [[v if v is not None else -1 for v in row] for row in clues]
+        ):
             logger.warning("0 が隣接したため再試行します")
             continue
 
@@ -290,13 +283,8 @@ def generate_puzzle(
         clues_all = calculate_clues(last_edges, size)
         curve_ratio_fb = _calculate_curve_ratio(last_edges, size)
         # フォールバックでも 0 の隣接を許さない
-        for rr in range(size.rows):
-            for cc in range(size.cols):
-                if clues_all[rr][cc] == 0:
-                    if rr + 1 < size.rows and clues_all[rr + 1][cc] == 0:
-                        raise ValueError("0 が縦に隣接しています")
-                    if cc + 1 < size.cols and clues_all[rr][cc + 1] == 0:
-                        raise ValueError("0 が横に隣接しています")
+        if _has_zero_adjacent(clues_all):
+            raise ValueError("0 が隣接しています")
         _, solver_stats = cast(
             tuple[int, Dict[str, int]],
             count_solutions(
