@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import argparse
 from typing import TYPE_CHECKING
 
@@ -40,7 +42,11 @@ def main() -> None:
     args = parser.parse_args()
 
     puzzles = generate_multiple_puzzles(
-        args.rows, args.cols, args.count_each, jobs=args.jobs
+        args.rows,
+        args.cols,
+        args.count_each,
+        jobs=args.jobs,
+        worker_log_level=logging.WARNING if args.jobs > 1 else logging.INFO,
     )
     path = save_puzzles(puzzles)
     print(f"{path} を作成しました")
