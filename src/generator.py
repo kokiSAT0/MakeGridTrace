@@ -39,12 +39,18 @@ from .constants import MAX_SOLVER_STEPS
 from .types import Puzzle
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
-
 logger = logging.getLogger(__name__)
+
+
+def setup_logging(level: int = logging.INFO) -> None:
+    """ログ出力の設定を行う関数"""
+
+    # logging.basicConfig でフォーマットやレベルを一括設定する
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+    )
+
 
 # JSON スキーマのバージョン
 SCHEMA_VERSION = "2.0"
