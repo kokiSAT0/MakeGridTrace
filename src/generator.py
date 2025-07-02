@@ -726,7 +726,10 @@ def puzzle_to_ascii(puzzle: Puzzle) -> str:
             for c in range(size.cols + 1):
                 line += "|" if vertical[row_idx][c] else " "
                 if c < size.cols:
-                    line += f" {clues[row_idx][c]} "
+                    value = clues[row_idx][c]
+                    # None のまま表示すると幅が広がるので 'N' で代用
+                    cell = "N" if value is None else str(value)
+                    line += f" {cell} "
             lines.append(line)
 
     return "\n".join(lines)
