@@ -38,7 +38,7 @@ try:
     from .puzzle_io import save_puzzle
     from .validator import validate_puzzle, _has_zero_adjacent
     from .constants import MAX_SOLVER_STEPS
-    from .puzzle_builder import _reduce_clues, _build_puzzle_dict
+    from .puzzle_builder import _reduce_clues, _build_puzzle_dict, _optimize_clues
 
     # 標準ライブラリの ``types`` と名前が衝突しないよう ``puzzle_types`` に変更
     from .puzzle_types import Puzzle
@@ -56,7 +56,7 @@ except ImportError:  # pragma: no cover - スクリプト実行時のフォー�
     from puzzle_io import save_puzzle
     from validator import validate_puzzle, _has_zero_adjacent
     from constants import MAX_SOLVER_STEPS
-    from puzzle_builder import _reduce_clues, _build_puzzle_dict
+    from puzzle_builder import _reduce_clues, _build_puzzle_dict, _optimize_clues
     from puzzle_types import Puzzle
 
 
@@ -244,6 +244,33 @@ def generate_puzzle(
         min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
         clues = _reduce_clues(
             clues_all, size, rng, min_hint=min_hint, step_limit=solver_step_limit
+        )
+        # 現在のヒント配置でソルバーステップ数を計算
+        base_solutions, base_stats = cast(
+            tuple[int, Dict[str, int]],
+            count_solutions(
+                clues,
+                size,
+                limit=2,
+                return_stats=True,
+                step_limit=solver_step_limit,
+            ),
+        )
+        if base_solutions != 1:
+            logger.warning("解が一意でないため再試行します")
+            last_edges = edges
+            continue
+        clues = _optimize_clues(
+            clues,
+            clues_all,
+            size,
+            rng,
+            min_hint=min_hint,
+            loop_length=loop_length,
+            curve_ratio=curve_ratio,
+            solver_steps=base_stats["steps"],
+            iterations=5,
+            step_limit=min(solver_step_limit, 2000),
         )
 
         # 0 が縦横に並んでいないか確認
