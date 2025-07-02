@@ -61,7 +61,8 @@ def test_save_puzzle(tmp_path: Path) -> None:
 
 def test_generate_puzzle_theme_border() -> None:
     puzzle = cast(
-        Dict[str, Any], generator.generate_puzzle(3, 3, difficulty="easy", theme="border")
+        Dict[str, Any],
+        generator.generate_puzzle(3, 3, difficulty="easy", theme="border"),
     )
     validator.validate_puzzle(puzzle)
     assert puzzle["theme"] == "border"
@@ -118,6 +119,11 @@ def test_has_zero_adjacent_helper() -> None:
 def test_generator_zero_not_adjacent() -> None:
     puzzle = cast(Dict[str, Any], generator.generate_puzzle(3, 3, seed=10))
     assert not validator._has_zero_adjacent(puzzle["cluesFull"])
+
+
+def test_generate_puzzle_timeout() -> None:
+    with pytest.raises(TimeoutError):
+        generator.generate_puzzle(3, 3, timeout_s=0.0)
 
 
 @pytest.mark.slow

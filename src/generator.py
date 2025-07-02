@@ -8,7 +8,7 @@ import os
 import random
 import concurrent.futures
 import hashlib
-from typing import Any, Dict, List, Optional, cast, TYPE_CHECKING
+from typing import Dict, List, Optional, cast, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.solver import PuzzleSize, calculate_clues, count_solutions
@@ -33,8 +33,8 @@ from .loop_builder import (
 )
 from .puzzle_io import save_puzzle
 from .validator import validate_puzzle, _has_zero_adjacent
-from .constants import MAX_SOLVER_STEPS, _evaluate_difficulty
-from .puzzle_builder import _reduce_clues, _build_puzzle_dict, SCHEMA_VERSION
+from .constants import MAX_SOLVER_STEPS
+from .puzzle_builder import _reduce_clues, _build_puzzle_dict
 
 from .types import Puzzle
 
@@ -50,6 +50,7 @@ def setup_logging(level: int = logging.INFO) -> None:
         level=level,
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
+
 
 ALLOWED_DIFFICULTIES = {"easy", "normal", "hard", "expert"}
 
@@ -67,12 +68,6 @@ MIN_HINT_RATIO = {
 RETRY_LIMIT = 5
 
 # MAX_SOLVER_STEPS と _evaluate_difficulty は constants モジュールへ移動した
-
-
-def setup_logging(level: int = logging.INFO) -> None:
-    """ログ出力の基本設定を行う"""
-
-    logging.basicConfig(level=level, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
 def _validate_edges(edges: Dict[str, List[List[bool]]], size: PuzzleSize) -> bool:
@@ -129,7 +124,6 @@ def _create_loop(
     return edges, loop_length, curve_ratio
 
 
-
 def generate_puzzle(
     rows: int,
     cols: int,
@@ -138,6 +132,7 @@ def generate_puzzle(
     seed: int | None = None,
     symmetry: Optional[str] = None,
     theme: Optional[str] = None,
+    timeout_s: float | None = None,
     return_stats: bool = False,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
     """簡易な盤面を生成して返す
@@ -147,6 +142,7 @@ def generate_puzzle(
     :param difficulty: 難易度ラベル
     :param seed: 乱数シード。再現したいときに指定する
     :param symmetry: 回転対称を指定する場合は "rotational"
+    :param timeout_s: 生成処理のタイムアウト秒。None なら無制限
     :param return_stats: True なら生成統計も返す
     :return: 生成したパズル。``return_stats`` が True の場合は
         ``(Puzzle, dict)`` のタプルを返す
@@ -179,7 +175,13 @@ def generate_puzzle(
     size = PuzzleSize(rows=rows, cols=cols)
 
     last_edges: Dict[str, List[List[bool]]] | None = None
+    best_puzzle: Puzzle | None = None
     for attempt in range(RETRY_LIMIT):
+        if timeout_s is not None and time.perf_counter() - start_time > timeout_s:
+            if best_puzzle is not None:
+                best_puzzle["partial"] = True
+                return best_puzzle
+            raise TimeoutError("generation timed out")
         step_time = time.perf_counter()
         edges, loop_length, curve_ratio = _create_loop(
             size, rng, symmetry=symmetry, theme=theme
@@ -245,6 +247,7 @@ def generate_puzzle(
             theme=theme,
             generation_params=generation_params,
             seed_hash=seed_hash,
+            partial=False,
         )
 
         # 生成した結果が仕様を満たすか簡易チェック
@@ -256,6 +259,7 @@ def generate_puzzle(
             last_edges = edges
             continue
 
+        best_puzzle = puzzle
         stats = {
             "loop_length": loop_length,
             "hint_count": sum(1 for row in clues for v in row if v is not None),
@@ -297,6 +301,7 @@ def generate_puzzle(
             theme=theme,
             generation_params=generation_params,
             seed_hash=seed_hash,
+            partial=True,
         )
         # フォールバック結果でも必ず検証を行う
         validate_puzzle(puzzle)
@@ -312,6 +317,10 @@ def generate_puzzle(
         if return_stats:
             return puzzle, stats
         return puzzle
+
+    if best_puzzle is not None:
+        best_puzzle["partial"] = True
+        return best_puzzle
 
     raise ValueError("盤面生成に失敗しました")
 
@@ -460,6 +469,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--seed", type=int, default=None, help="乱数シード")
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="タイムアウト秒数 (指定しない場合は無制限)",
+    )
+    parser.add_argument(
         "--parallel",
         type=int,
         default=1,
@@ -474,6 +489,7 @@ if __name__ == "__main__":
             difficulty=args.difficulty,
             seed=args.seed,
             symmetry=args.symmetry,
+            timeout_s=args.timeout,
             jobs=args.parallel,
         )
     else:
@@ -483,6 +499,7 @@ if __name__ == "__main__":
             difficulty=args.difficulty,
             seed=args.seed,
             symmetry=args.symmetry,
+            timeout_s=args.timeout,
         )
     pzl = cast(Puzzle, pzl_obj)
     path = save_puzzle(pzl)
