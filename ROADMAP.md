@@ -7,7 +7,7 @@
 - [x] **ヒント最適化(Simulated Annealing)**
   - 仕様書の生成パイプライン D で予定されている焼きなまし最適化を実装しました【F:MakeGridTraceSPECnew.md†L144-L160】。
 - [x] **テーマ(`theme`)の拡充**
-  - `"maze"` テーマを追加し、ランダム生成から曲がりの多いループを選択するロジックを実装しました【F:src/generator.py†L166-L191】。
+  - `"maze"` と `"spiral"` テーマを追加し、ランダム生成から曲がりの多いループを選択するロジックを実装しました【F:src/generator.py†L174-L214】。
 - [x] **品質指標(Quality Score)の改良**
   - ヒント密度や行列バランスを評価に加え、より細かな指標で算出するよう更新しました【F:src/puzzle_builder.py†L88-L116】。
 - [x] **solverStats の詳細化**

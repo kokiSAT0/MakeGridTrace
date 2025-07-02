@@ -162,9 +162,10 @@ def _create_loop(
 ) -> tuple[Dict[str, List[List[bool]]], int, float]:
     """ループを生成し長さと曲率を返す
 
-    ``theme`` に ``"border"`` を指定すると外周のみ、
-    ``"maze"`` を指定すると曲がりの多いループを選ぶ。
-    それ以外はランダム生成となる。
+    ``theme`` が ``"border"`` の場合は外周のみを使った単純なループ、
+    ``"maze"`` の場合はランダム生成から曲がりの多いものを選び、
+    ``"spiral"`` の場合は曲率比率が最も高い候補を採用する。
+    指定がない場合は完全ランダム生成となる。
     """
 
     # 対称性のあるループは失敗しやすいため複数回試行する
@@ -192,6 +193,23 @@ def _create_loop(
                 if score > best_score:
                     best_edges = cand
                     best_score = score
+            if best_edges is not None:
+                edges = best_edges
+            else:
+                _generate_random_loop(edges, size, rng)
+        elif theme == "spiral":
+            # 曲率比率が最も高いループを採用する
+            best_edges = None
+            best_curve = -1.0
+            for _ in range(10):
+                cand = _create_empty_edges(size)
+                _generate_random_loop(cand, size, rng)
+                if not _validate_edges(cand, size):
+                    continue
+                curve = _calculate_curve_ratio(cand, size)
+                if curve > best_curve:
+                    best_edges = cand
+                    best_curve = curve
             if best_edges is not None:
                 edges = best_edges
             else:
@@ -244,6 +262,7 @@ def generate_puzzle(
     :param difficulty: 難易度ラベル
     :param seed: 乱数シード。再現したいときに指定する
     :param symmetry: 対称性を指定。"rotational" / "vertical" / "horizontal" のいずれか
+    :param theme: 盤面のテーマ。"border", "maze", "spiral" のいずれか
     :param timeout_s: 生成処理のタイムアウト秒。None なら無制限
     :param solver_step_limit: ソルバー探索の最大ステップ数
     :param return_stats: True なら生成統計も返す
@@ -631,7 +650,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--theme",
-        choices=["border", "maze"],
+        choices=["border", "maze", "spiral"],
         help="盤面のテーマを指定",
     )
     parser.add_argument("--seed", type=int, default=None, help="乱数シード")

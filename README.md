@@ -65,7 +65,8 @@ python -m src.generator 4 4 --difficulty normal
 - `--difficulty` : 難易度ラベル。`easy` / `normal` / `hard` / `expert` から選択。省略すると `easy`。
 - `--symmetry` : `rotational`, `vertical`, `horizontal` のいずれかを指定すると
   回転対称・上下対称・左右対称の盤面を生成します。
-- `--theme` : `border` を指定すると外周のみを使った盤面を生成します。
+- `--theme` : `border` のほか `maze`, `spiral` を指定できます。テーマごとに
+  ループ形状が変わります。
 - `--seed` : 乱数シード。再現したいときに数値を指定します。
 - `--timeout` : 生成処理のタイムアウト秒数。指定しない場合は無制限。
 - `--parallel` : 並列生成プロセス数。複数指定すると生成を複数プロセスで試行します。

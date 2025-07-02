@@ -96,6 +96,16 @@ def test_generate_puzzle_theme_maze() -> None:
     assert puzzle["generationParams"]["theme"] == "maze"
 
 
+def test_generate_puzzle_theme_spiral() -> None:
+    puzzle = cast(
+        Dict[str, Any],
+        generator.generate_puzzle(3, 3, difficulty="easy", theme="spiral", seed=12),
+    )
+    validator.validate_puzzle(puzzle)
+    assert puzzle["theme"] == "spiral"
+    assert puzzle["generationParams"]["theme"] == "spiral"
+
+
 def test_validate_puzzle() -> None:
     puzzle = cast(Dict[str, Any], generator.generate_puzzle(4, 4, seed=0))
     # エラーが出ないことを確認
