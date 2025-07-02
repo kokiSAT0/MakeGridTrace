@@ -248,6 +248,12 @@ def test_generate_puzzle_parallel() -> None:
     validator.validate_puzzle(puzzle)
 
 
+@pytest.mark.slow
+def test_generate_multiple_parallel() -> None:
+    puzzles = generator.generate_multiple_puzzles(3, 3, count_each=1, seed=8, jobs=2)
+    assert len(puzzles) == 4
+
+
 def test_hint_dispersion_helper() -> None:
     clues = [
         [0, None, 2, None],

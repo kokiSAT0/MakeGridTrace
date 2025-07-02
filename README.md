@@ -70,17 +70,19 @@ python -m src.generator 4 4 --difficulty normal
 - `--seed` : 乱数シード。再現したいときに数値を指定します。
 - `--timeout` : 生成処理のタイムアウト秒数。指定しない場合は無制限。
 - `--parallel` : 並列生成プロセス数。複数指定すると生成を複数プロセスで試行します。
+- `--jobs` : `bulk_generator.py` 用の並列生成プロセス数。値を増やすと早く生成できます。
 
 ### 複数の難易度をまとめて生成する
 
 `bulk_generator.py` を使うと、4 種類の難易度を同数生成して一つの JSON ファイルに保存できます。
 
+
 ```bash
 # 相対インポートを使っているため `-m` オプションでモジュールとして実行する
-python -m src.bulk_generator 4 4 2
+python -m src.bulk_generator 4 4 2 --jobs 4
 ```
 
-1 番目と 2 番目の引数は盤面の行数と列数、3 番目の引数は各難易度で何問生成するかを指定します。出力は `data/map_gridtrace.json` に保存されます。
+1 番目と 2 番目の引数は盤面の行数と列数、3 番目の引数は各難易度で何問生成するかを指定します。`--jobs` を増やすと複数プロセスで並列に生成できます。出力は `data/map_gridtrace.json` に保存されます。
 
 ## 3. マップを保存する
 

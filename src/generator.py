@@ -545,7 +545,12 @@ def generate_puzzle_parallel(
 
 
 def generate_multiple_puzzles(
-    rows: int, cols: int, count_each: int, *, seed: int | None = None
+    rows: int,
+    cols: int,
+    count_each: int,
+    *,
+    seed: int | None = None,
+    jobs: int | None = None,
 ) -> List[Puzzle]:
     """各難易度を同数生成して一覧で返す
 
@@ -568,23 +573,61 @@ def generate_multiple_puzzles(
 
     puzzles: List[Puzzle] = []
     seed_offset = 0
-    # 難易度の順序を固定するためリスト化
-    for difficulty in sorted(ALLOWED_DIFFICULTIES):
-        generated = 0
-        while generated < count_each:
-            puzzle_seed = None if seed is None else seed + seed_offset
-            try:
-                puzzle_obj = generate_puzzle(
-                    rows, cols, difficulty=difficulty, seed=puzzle_seed
-                )
-            except ValueError as exc:
-                # まれに 0 が隣接して生成に失敗することがあるため再試行
-                logger.warning("%s の生成失敗: %s", difficulty, exc)
+
+    if jobs is None:
+        jobs = 1
+
+    # jobs が 1 の場合は従来どおり逐次生成
+    if jobs <= 1:
+        # 難易度の順序を固定するためリスト化
+        for difficulty in sorted(ALLOWED_DIFFICULTIES):
+            generated = 0
+            while generated < count_each:
+                puzzle_seed = None if seed is None else seed + seed_offset
+                try:
+                    puzzle_obj = generate_puzzle(
+                        rows, cols, difficulty=difficulty, seed=puzzle_seed
+                    )
+                except ValueError as exc:
+                    # まれに 0 が隣接して生成に失敗することがあるため再試行
+                    logger.warning("%s の生成失敗: %s", difficulty, exc)
+                    seed_offset += 1
+                    continue
+                puzzles.append(cast(Puzzle, puzzle_obj))
+                generated += 1
                 seed_offset += 1
-                continue
-            puzzles.append(cast(Puzzle, puzzle_obj))
-            generated += 1
-            seed_offset += 1
+    else:
+        # 並列に各パズル生成を実行する
+        if seed is None:
+            base_seed = random.randint(0, 2**32 - 1)
+        else:
+            base_seed = seed
+        futures = []
+        with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as executor:
+            for difficulty in sorted(ALLOWED_DIFFICULTIES):
+                for _ in range(count_each):
+                    puzzle_seed = base_seed + seed_offset
+                    seed_offset += 1
+                    futures.append(
+                        executor.submit(
+                            generate_puzzle,
+                            rows,
+                            cols,
+                            difficulty=difficulty,
+                            seed=puzzle_seed,
+                        )
+                    )
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    puzzle_obj = future.result()
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("並列生成失敗: %s", exc)
+                    continue
+                puzzles.append(cast(Puzzle, puzzle_obj))
+
+        expected = count_each * len(ALLOWED_DIFFICULTIES)
+        if len(puzzles) < expected:
+            raise ValueError("並列生成に失敗しました")
 
     logger.info("複数盤面生成終了: %.3f 秒", time.perf_counter() - start_time)
     return puzzles
