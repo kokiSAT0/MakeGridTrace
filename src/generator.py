@@ -194,7 +194,9 @@ def generate_puzzle(
 
     last_edges: Dict[str, List[List[bool]]] | None = None
     best_puzzle: Puzzle | None = None
-    for attempt in range(RETRY_LIMIT):
+    # 対称性を指定すると成功率が下がるため試行回数を増やす
+    retry_limit = RETRY_LIMIT * 50 if symmetry else RETRY_LIMIT
+    for attempt in range(retry_limit):
         if timeout_s is not None and time.perf_counter() - start_time > timeout_s:
             if best_puzzle is not None:
                 best_puzzle["partial"] = True
@@ -213,6 +215,12 @@ def generate_puzzle(
         step_time = time.perf_counter()
         clues_all = calculate_clues(edges, size)
         logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
+
+        # 外周だけの単純なループでは 0 が並びやすいので先にチェックする
+        if _has_zero_adjacent(clues_all):
+            logger.warning("0 が隣接するループのため再試行します")
+            last_edges = edges
+            continue
 
         min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
         clues = _reduce_clues(
