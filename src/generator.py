@@ -99,7 +99,14 @@ logger = logging.getLogger(__name__)
 
 
 def setup_logging(level: int = logging.INFO) -> None:
-    """ログ出力の設定を行う関数"""
+    """ログ出力の設定を行う関数
+
+    Python の ``logging`` モジュールはアプリの動作状況を
+    画面やファイルに出力する仕組みです。ここでは ``basicConfig`` を
+    使ってフォーマットと出力レベルをまとめて設定します。
+
+    :param level: 表示するログの重要度。``logging.INFO`` などを指定
+    """
 
     # logging.basicConfig でフォーマットやレベルを一括設定する
     logging.basicConfig(

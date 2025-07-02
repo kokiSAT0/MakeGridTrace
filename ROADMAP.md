@@ -12,10 +12,10 @@
   - ヒント密度や行列バランスを評価に加え、より細かな指標で算出するよう更新しました【F:src/puzzle_builder.py†L88-L116】。
 - [x] **solverStats の詳細化**
   - 手筋別の枝刈り回数 (``ruleVertex`` / ``ruleClue``) を ``solverStats`` に追加しました【F:src/solver.py†L142-L158】【F:src/puzzle_builder.py†L255-L259】。
-- [ ] **CI 強化(品質ヒストグラム)**
-  - Quality Score の分布を解析し P95≥70 を目標とする仕組みは未導入【F:MakeGridTraceSPECnew.md†L181-L182】。
-- [ ] **ドキュメント整備**
-  - 初心者向けの日本語 docstring 充実が課題【F:MakeGridTraceSPECnew.md†L182-L183】。
+- [x] **CI 強化(品質ヒストグラム)**
+  - `build_quality_histogram` を追加し統計を取得できるようにしました【F:src/quality_histogram.py†L1-L65】。
+- [x] **ドキュメント整備**
+  - `setup_logging` などの docstring を補足し初心者向けに解説しました【F:src/generator.py†L101-L109】。
 
 ## 開発ロードマップ(案)
 
