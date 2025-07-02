@@ -10,14 +10,22 @@ import json
 import os
 import random
 import concurrent.futures
-from typing import Any, Dict, List, Optional, cast
+import hashlib
+from typing import Any, Dict, List, Optional, cast, TYPE_CHECKING
 
-try:
-    # パッケージとして実行された場合の相対インポート
-    from .solver import PuzzleSize, calculate_clues, count_solutions
-except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
-    # スクリプトとして直接実行されたときは同じディレクトリからインポートする
-    from solver import PuzzleSize, calculate_clues, count_solutions
+if TYPE_CHECKING:
+    from src.solver import PuzzleSize, calculate_clues, count_solutions
+else:
+    try:
+        # パッケージとして実行された場合の相対インポート
+        from .solver import PuzzleSize, calculate_clues, count_solutions
+    except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+        # スクリプトとして直接実行されたときは同じディレクトリからインポートする
+        from solver import (
+            PuzzleSize,
+            calculate_clues,
+            count_solutions,
+        )
 
 
 logging.basicConfig(
@@ -258,6 +266,8 @@ def _build_puzzle_dict(
     difficulty: str,
     solver_stats: Dict[str, int],
     symmetry: Optional[str],
+    generation_params: Dict[str, Any],
+    seed_hash: str,
 ) -> Puzzle:
     """パズル用の辞書オブジェクトを構築するヘルパー関数"""
 
@@ -279,6 +289,8 @@ def _build_puzzle_dict(
             solver_stats["steps"], solver_stats["max_depth"]
         ),
         "symmetry": symmetry,
+        "generationParams": generation_params,
+        "seedHash": seed_hash,
         "createdBy": "auto-gen-v1",
         "createdAt": datetime.utcnow().date().isoformat(),
     }
@@ -315,6 +327,16 @@ def generate_puzzle(
 
     if seed is not None:
         random.seed(seed)
+
+    generation_params = {
+        "rows": rows,
+        "cols": cols,
+        "difficulty": difficulty,
+        "seed": seed,
+        "symmetry": symmetry,
+    }
+
+    seed_hash = hashlib.sha256(str(seed).encode("utf-8")).hexdigest()
 
     start_time = time.perf_counter()
     logger.info("盤面生成開始: %dx%d difficulty=%s", rows, cols, difficulty)
@@ -396,6 +418,8 @@ def generate_puzzle(
             difficulty=difficulty,
             solver_stats=solver_stats,
             symmetry=symmetry,
+            generation_params=generation_params,
+            seed_hash=seed_hash,
         )
 
         # 生成した結果が仕様を満たすか簡易チェック
@@ -437,13 +461,15 @@ def generate_puzzle(
         puzzle = _build_puzzle_dict(
             size=size,
             edges=last_edges,
-            clues=clues_all,
+            clues=cast(List[List[int | None]], clues_all),
             clues_full=clues_all,
             loop_length=_count_edges(last_edges),
             curve_ratio=curve_ratio_fb,
             difficulty=difficulty,
             solver_stats=solver_stats,
             symmetry=symmetry,
+            generation_params=generation_params,
+            seed_hash=seed_hash,
         )
         validate_puzzle(puzzle)
         stats = {
