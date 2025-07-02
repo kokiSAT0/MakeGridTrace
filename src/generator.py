@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
 import logging
 import time
@@ -13,20 +12,14 @@ import random
 import concurrent.futures
 from typing import Any, Dict, List, Optional, cast
 
+from .solver import PuzzleSize, calculate_clues, count_solutions
+
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class PuzzleSize:
-    """盤面サイズを表すデータクラス"""
-
-    rows: int
-    cols: int
 
 
 Puzzle = Dict[str, Any]
@@ -157,26 +150,6 @@ def _apply_rotational_symmetry(
             vertical[sr][sc] = val
 
 
-def _calculate_clues(
-    edges: Dict[str, List[List[bool]]], size: PuzzleSize
-) -> List[List[int]]:
-    """solutionEdges からヒント数字を計算する"""
-    clues = [[0 for _ in range(size.cols)] for _ in range(size.rows)]
-    for r in range(size.rows):
-        for c in range(size.cols):
-            count = 0
-            if edges["horizontal"][r][c]:
-                count += 1
-            if edges["horizontal"][r + 1][c]:
-                count += 1
-            if edges["vertical"][r][c]:
-                count += 1
-            if edges["vertical"][r][c + 1]:
-                count += 1
-            clues[r][c] = count
-    return clues
-
-
 def _count_edges(edges: Dict[str, List[List[bool]]]) -> int:
     """ループに含まれる辺の総数を数える"""
 
@@ -246,178 +219,6 @@ def _evaluate_difficulty(steps: int, depth: int) -> str:
     return "expert"
 
 
-def _count_solutions(
-    clues: List[List[int | None]],
-    size: PuzzleSize,
-    *,
-    limit: int = 2,
-    return_stats: bool = False,
-    step_limit: int | None = None,
-) -> int | tuple[int, Dict[str, int]]:
-    """バックトラックで解の個数を数える簡易ソルバー
-
-    :param return_stats: ``True`` のとき探索統計を ``dict`` で返す
-    :param step_limit: 解析ステップ数の上限。``None`` なら制限なし
-    :return: 解の個数。``return_stats`` が ``True`` の場合は
-        ``(解数, {"steps": int, "max_depth": int})`` の形式で返す
-    """
-
-    if step_limit is None and return_stats:
-        step_limit = MAX_SOLVER_STEPS
-
-    # 辺リストとセル・頂点の参照テーブルを構築
-    edges_list: list[tuple[str, int, int]] = []
-    cell_edges: list[list[list[int]]] = [
-        [[] for _ in range(size.cols)] for _ in range(size.rows)
-    ]
-    vertex_edges: list[list[list[int]]] = [
-        [[] for _ in range(size.cols + 1)] for _ in range(size.rows + 1)
-    ]
-
-    def add_edge(t: str, r: int, c: int) -> None:
-        idx = len(edges_list)
-        edges_list.append((t, r, c))
-        if t == "h":
-            v1 = (r, c)
-            v2 = (r, c + 1)
-            if r < size.rows:
-                cell_edges[r][c].append(idx)
-            if r > 0:
-                cell_edges[r - 1][c].append(idx)
-        else:
-            v1 = (r, c)
-            v2 = (r + 1, c)
-            if c < size.cols:
-                cell_edges[r][c].append(idx)
-            if c > 0:
-                cell_edges[r][c - 1].append(idx)
-        vertex_edges[v1[0]][v1[1]].append(idx)
-        vertex_edges[v2[0]][v2[1]].append(idx)
-
-    for r in range(size.rows + 1):
-        for c in range(size.cols):
-            add_edge("h", r, c)
-    for r in range(size.rows):
-        for c in range(size.cols + 1):
-            add_edge("v", r, c)
-
-    n = len(edges_list)
-    edge_state = [False] * n
-    vertex_degree = [[0 for _ in range(size.cols + 1)] for _ in range(size.rows + 1)]
-    cell_count = [[0 for _ in range(size.cols)] for _ in range(size.rows)]
-    cell_unknown = [[4 for _ in range(size.cols)] for _ in range(size.rows)]
-
-    solutions = 0
-    steps = 0
-    max_depth = 0
-
-    def dfs(idx: int, depth: int) -> None:
-        nonlocal solutions, steps, max_depth
-        steps += 1
-        if depth > max_depth:
-            max_depth = depth
-        if step_limit is not None and steps > step_limit:
-            return
-        if solutions >= limit:
-            return
-        if idx == n:
-            # すべて決めたので条件を確認
-            for r in range(size.rows + 1):
-                for c in range(size.cols + 1):
-                    if vertex_degree[r][c] not in (0, 2):
-                        return
-            for r in range(size.rows):
-                for c in range(size.cols):
-                    clue = clues[r][c]
-                    if clue is not None and cell_count[r][c] != clue:
-                        return
-
-            horizontal = [
-                [False for _ in range(size.cols)] for _ in range(size.rows + 1)
-            ]
-            vertical = [[False for _ in range(size.cols + 1)] for _ in range(size.rows)]
-            for i, (t, r, c) in enumerate(edges_list):
-                if not edge_state[i]:
-                    continue
-                if t == "h":
-                    horizontal[r][c] = True
-                else:
-                    vertical[r][c] = True
-            # 検証のために cluesFull を含むパズルオブジェクトを作成
-            clues_full = _calculate_clues(
-                {"horizontal": horizontal, "vertical": vertical},
-                size,
-            )
-            puzzle = {
-                "size": {"rows": size.rows, "cols": size.cols},
-                "solutionEdges": {"horizontal": horizontal, "vertical": vertical},
-                "clues": clues,
-                "cluesFull": clues_full,
-            }
-            try:
-                validate_puzzle(puzzle)
-            except ValueError:
-                return
-            solutions += 1
-            return
-
-        t, r, c = edges_list[idx]
-        for val in (False, True):
-            edge_state[idx] = val
-            vertices = [(r, c), (r, c + 1)] if t == "h" else [(r, c), (r + 1, c)]
-            cells = []
-            if t == "h":
-                if r < size.rows:
-                    cells.append((r, c))
-                if r > 0:
-                    cells.append((r - 1, c))
-            else:
-                if c < size.cols:
-                    cells.append((r, c))
-                if c > 0:
-                    cells.append((r, c - 1))
-
-            for vr, vc in vertices:
-                vertex_degree[vr][vc] += int(val)
-
-            for cr, cc in cells:
-                cell_unknown[cr][cc] -= 1
-                if val:
-                    cell_count[cr][cc] += 1
-
-            # 部分的な矛盾がないか確認
-            ok = True
-            for vr, vc in vertices:
-                if vertex_degree[vr][vc] > 2:
-                    ok = False
-                    break
-            if ok:
-                for cr, cc in cells:
-                    clue = clues[cr][cc]
-                    if clue is None:
-                        continue
-                    used = cell_count[cr][cc]
-                    unknown = cell_unknown[cr][cc]
-                    if used > clue or used + unknown < clue:
-                        ok = False
-                        break
-            if ok:
-                dfs(idx + 1, depth + 1)
-
-            for vr, vc in vertices:
-                vertex_degree[vr][vc] -= int(val)
-            for cr, cc in cells:
-                if val:
-                    cell_count[cr][cc] -= 1
-                cell_unknown[cr][cc] += 1
-        edge_state[idx] = False
-
-    dfs(0, 0)
-    if return_stats:
-        return solutions, {"steps": steps, "max_depth": max_depth}
-    return solutions
-
-
 def _reduce_clues(
     clues: List[List[int]], size: PuzzleSize, *, min_hint: int
 ) -> List[List[int | None]]:
@@ -434,7 +235,7 @@ def _reduce_clues(
         hint_count = sum(1 for row in result for v in row if v is not None)
         if (
             hint_count < min_hint
-            or _count_solutions(result, size, limit=2, step_limit=MAX_SOLVER_STEPS) != 1
+            or count_solutions(result, size, limit=2, step_limit=MAX_SOLVER_STEPS) != 1
         ):
             result[r][c] = original
 
@@ -494,7 +295,7 @@ def generate_puzzle(
             continue
 
         step_time = time.perf_counter()
-        clues_all = _calculate_clues(edges, size)
+        clues_all = calculate_clues(edges, size)
         logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
 
         min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
@@ -516,7 +317,7 @@ def generate_puzzle(
 
         solutions, solver_stats = cast(
             tuple[int, Dict[str, int]],
-            _count_solutions(
+            count_solutions(
                 clues,
                 size,
                 limit=2,
@@ -529,7 +330,7 @@ def generate_puzzle(
             clues = cast(List[List[int | None]], [row[:] for row in clues_all])
             solutions, solver_stats = cast(
                 tuple[int, Dict[str, int]],
-                _count_solutions(
+                count_solutions(
                     clues,
                     size,
                     limit=2,
@@ -581,7 +382,7 @@ def generate_puzzle(
 
     # すべて失敗した場合は最後に計算した edges を使用してフルヒントで返す
     if last_edges is not None:
-        clues_all = _calculate_clues(last_edges, size)
+        clues_all = calculate_clues(last_edges, size)
         curve_ratio_fb = _calculate_curve_ratio(last_edges, size)
         # フォールバックでも 0 の隣接を許さない
         for rr in range(size.rows):
@@ -593,7 +394,7 @@ def generate_puzzle(
                         raise ValueError("0 が横に隣接しています")
         _, solver_stats = cast(
             tuple[int, Dict[str, int]],
-            _count_solutions(
+            count_solutions(
                 cast(List[List[int | None]], [row[:] for row in clues_all]),
                 size,
                 limit=2,
@@ -869,7 +670,7 @@ def validate_puzzle(puzzle: Puzzle) -> None:
     clues_full = puzzle.get("cluesFull")
     if not isinstance(clues_full, list):
         raise ValueError("cluesFull フィールドが存在しません")
-    calculated = _calculate_clues(edges, size)
+    calculated = calculate_clues(edges, size)
     if clues_full != calculated:
         raise ValueError("cluesFull が solutionEdges と一致しません")
 
