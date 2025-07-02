@@ -45,7 +45,6 @@ try:
 except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
     # スクリプトとして直接実行されたときは同じディレクトリからインポートする
     from loop_builder import (
-
         _create_empty_edges,
         _generate_random_loop,
         _count_edges,
@@ -154,7 +153,12 @@ def _create_loop(
     symmetry: Optional[str],
     theme: Optional[str],
 ) -> tuple[Dict[str, List[List[bool]]], int, float]:
-    """ループを生成し長さと曲率を返す"""
+    """ループを生成し長さと曲率を返す
+
+    ``theme`` に ``"border"`` を指定すると外周のみ、
+    ``"maze"`` を指定すると曲がりの多いループを選ぶ。
+    それ以外はランダム生成となる。
+    """
 
     # 対称性のあるループは失敗しやすいため複数回試行する
     for _ in range(5):
@@ -166,6 +170,25 @@ def _create_loop(
             for r in range(size.rows):
                 edges["vertical"][r][0] = True
                 edges["vertical"][r][size.cols] = True
+        elif theme == "maze":
+            # ランダムループを複数回生成し、より長く曲がりの多いものを採用する
+            best_edges = None
+            best_score = -1.0
+            for _ in range(10):
+                cand = _create_empty_edges(size)
+                _generate_random_loop(cand, size, rng)
+                if not _validate_edges(cand, size):
+                    continue
+                length = _count_edges(cand)
+                curve = _calculate_curve_ratio(cand, size)
+                score = length + curve * 100.0
+                if score > best_score:
+                    best_edges = cand
+                    best_score = score
+            if best_edges is not None:
+                edges = best_edges
+            else:
+                _generate_random_loop(edges, size, rng)
         else:
             _generate_random_loop(edges, size, rng)
 
@@ -599,7 +622,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--theme",
-        choices=["border"],
+        choices=["border", "maze"],
         help="盤面のテーマを指定",
     )
     parser.add_argument("--seed", type=int, default=None, help="乱数シード")
