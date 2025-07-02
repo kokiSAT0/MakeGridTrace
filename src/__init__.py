@@ -10,6 +10,7 @@ __all__ = [
     "generate_multiple_puzzles",
     "save_puzzles",
     "puzzle_to_ascii",
+    "build_quality_histogram",
 ]
 
 
@@ -22,6 +23,10 @@ def __getattr__(name: str) -> Any:
 
     if name in {"save_puzzle", "save_puzzles"}:
         module = import_module(".puzzle_io", __name__)
+        return getattr(module, name)
+
+    if name == "build_quality_histogram":
+        module = import_module(".quality_histogram", __name__)
         return getattr(module, name)
 
     if name == "validate_puzzle":
