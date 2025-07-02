@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
+# 盤面サイズごとの Edge 配列を再利用するためのキャッシュ
+_EDGE_CACHE: Dict[Tuple[int, int], List["Edge"]] = {}
+
 
 @dataclass
 class PuzzleSize:
@@ -38,7 +41,15 @@ class Board:
 
 
 def _create_edges(size: PuzzleSize) -> List[Edge]:
-    """盤面サイズから Edge の一覧を生成する"""
+    """盤面サイズから Edge の一覧を生成する
+
+    生成結果をキャッシュして再利用することで、同サイズの解析を高速化する。
+    """
+
+    key = (size.rows, size.cols)
+    if key in _EDGE_CACHE:
+        return _EDGE_CACHE[key]
+
     edges: List[Edge] = []
     for r in range(size.rows + 1):
         for c in range(size.cols):
@@ -70,6 +81,9 @@ def _create_edges(size: PuzzleSize) -> List[Edge]:
                 cells=cells,
             )
             edges.append(edge)
+
+    # 生成結果をキャッシュして次回以降再利用
+    _EDGE_CACHE[key] = edges
     return edges
 
 
