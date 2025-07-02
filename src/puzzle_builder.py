@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from .solver import PuzzleSize, count_solutions
 from .constants import MAX_SOLVER_STEPS, _evaluate_difficulty
+from . import validator
 
 Puzzle = Dict[str, Any]
 
@@ -95,6 +96,9 @@ def _reduce_clues(
 ) -> List[List[int | None]]:
     """ヒントをランダムに削減して一意性を保つ
 
+    生成途中で ``0`` が縦横に隣接してしまうとハード制約 H-8 を満たさなくなる。
+    そのため削除後に ``_has_zero_adjacent`` を確認し、違反する場合は削除を戻す。
+
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
     """
 
@@ -111,6 +115,9 @@ def _reduce_clues(
         if (
             hint_count < min_hint
             or count_solutions(result, size, limit=2, step_limit=MAX_SOLVER_STEPS) != 1
+            or validator._has_zero_adjacent(
+                [[v if v is not None else -1 for v in row] for row in result]
+            )
         ):
             result[r][c] = original
 

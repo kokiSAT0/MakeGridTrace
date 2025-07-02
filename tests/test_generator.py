@@ -3,6 +3,7 @@ import hashlib
 from pathlib import Path
 import sys
 from typing import Any, Dict, cast
+import random
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +13,7 @@ from src import puzzle_io  # noqa: E402
 from src import validator  # noqa: E402
 from src import solver  # noqa: E402
 from src import puzzle_builder  # noqa: E402
+from src import loop_builder  # noqa: E402
 
 
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
@@ -256,3 +258,16 @@ def test_count_solutions_unique() -> None:
     size = solver.PuzzleSize(3, 3)
     count = solver.count_solutions(puzzle["clues"], size, limit=2, step_limit=500000)
     assert count == 1
+
+
+def test_reduce_clues_zero_adjacent() -> None:
+    size = solver.PuzzleSize(3, 3)
+    rng_loop = random.Random(0)
+    edges = loop_builder._create_empty_edges(size)
+    loop_builder._generate_random_loop(edges, size, rng_loop)
+    clues = solver.calculate_clues(edges, size)
+    assert any(0 in row for row in clues)
+    reduced = puzzle_builder._reduce_clues(clues, size, random.Random(1), min_hint=1)
+    assert not validator._has_zero_adjacent(
+        [[v if v is not None else -1 for v in row] for row in reduced]
+    )
