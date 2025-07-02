@@ -121,8 +121,9 @@ MIN_HINT_RATIO = {
 }
 
 # 生成失敗時に何回まで再試行するか
-# リトライ回数を増やしてヒント削減に失敗しにくくする
-RETRY_LIMIT = 5
+# 5 回では盤面サイズによっては失敗することがあったため
+# 少し余裕を持たせる
+RETRY_LIMIT = 20
 
 # MAX_SOLVER_STEPS と _evaluate_difficulty は constants モジュールへ移動した
 
@@ -518,12 +519,20 @@ def generate_multiple_puzzles(
     seed_offset = 0
     # 難易度の順序を固定するためリスト化
     for difficulty in sorted(ALLOWED_DIFFICULTIES):
-        for _ in range(count_each):
+        generated = 0
+        while generated < count_each:
             puzzle_seed = None if seed is None else seed + seed_offset
-            puzzle_obj = generate_puzzle(
-                rows, cols, difficulty=difficulty, seed=puzzle_seed
-            )
+            try:
+                puzzle_obj = generate_puzzle(
+                    rows, cols, difficulty=difficulty, seed=puzzle_seed
+                )
+            except ValueError as exc:
+                # まれに 0 が隣接して生成に失敗することがあるため再試行
+                logger.warning("%s の生成失敗: %s", difficulty, exc)
+                seed_offset += 1
+                continue
             puzzles.append(cast(Puzzle, puzzle_obj))
+            generated += 1
             seed_offset += 1
 
     logger.info("複数盤面生成終了: %.3f 秒", time.perf_counter() - start_time)
