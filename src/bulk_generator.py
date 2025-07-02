@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from .generator import generate_multiple_puzzles, puzzle_to_ascii
+from .generator import generate_multiple_puzzles, puzzle_to_ascii, setup_logging
 from .puzzle_io import save_puzzles
 
 
@@ -32,4 +32,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # ログ設定を行ってからメイン処理を呼び出す
+    setup_logging()
     main()

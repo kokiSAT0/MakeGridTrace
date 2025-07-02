@@ -38,11 +38,13 @@ from .puzzle_builder import _build_puzzle_dict, _reduce_clues
 from .types import Puzzle
 
 
+def setup_logging(level: int = logging.INFO) -> None:
+    """logging を設定する関数"""
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
+    # ログはプログラムの動作を記録する仕組みです
+    logging.basicConfig(level=level, format="%(asctime)s [%(levelname)s] %(message)s")
+
+
 logger = logging.getLogger(__name__)
 
 # JSON スキーマのバージョン
@@ -389,6 +391,9 @@ def puzzle_to_ascii(puzzle: Puzzle) -> str:
 
 if __name__ == "__main__":
     import argparse
+
+    # ログ設定を行う。デフォルトは INFO レベル
+    setup_logging()
 
     # コマンドライン引数を受け取る
     parser = argparse.ArgumentParser(description="スリザーリンク盤面を生成します")
