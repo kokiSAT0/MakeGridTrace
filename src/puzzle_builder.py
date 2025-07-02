@@ -5,6 +5,7 @@ from __future__ import annotations
 # datetime モジュールから UTC 定数も合わせてインポート
 from datetime import datetime, UTC
 import math
+import statistics
 import random
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
@@ -71,10 +72,11 @@ def _calculate_quality_score(
     solver_steps: int,
     loop_length: int,
 ) -> float:
-    """曲率比率とヒントの配置から品質スコアを計算する
+    """品質指標 (Quality Score) を計算する
 
-    ``loop_length`` の長さも評価に取り入れ、外周をなぞるだけの短い
-    ループが高得点にならないよう調整する。
+    曲率比率に加え、ヒント密度や分散度など複数の統計から総合的な
+    スコアを算出する。``loop_length`` が短すぎる場合は減点し、
+    外周だけのループが高得点になるのを防ぐ。
     """
 
     cells = len(clues) * len(clues[0]) if clues else 0
@@ -89,9 +91,24 @@ def _calculate_quality_score(
 
     dispersion = _calculate_hint_dispersion(clues)
 
+    # ヒント密度が 25% 程度から大きく外れると減点する
+    density_score = 1.0 - min(1.0, abs(p - 0.25) * 4)
+
+    # 行・列ごとのヒント数のばらつきを評価 (均一なら 1.0)
+    row_counts = [sum(1 for v in row if v is not None) for row in clues]
+    col_counts = [sum(1 for row in clues if row[c] is not None) for c in range(len(clues[0]))]
+    if hint_count > 0:
+        row_balance = 1.0 - (max(row_counts) - min(row_counts)) / hint_count
+        col_balance = 1.0 - (max(col_counts) - min(col_counts)) / hint_count
+    else:
+        row_balance = col_balance = 0.0
+    balance_score = max(0.0, (row_balance + col_balance) / 2)
+
     score = 20 * math.log10(max(curve_ratio * 100, 0.01)) + 25 * entropy
     score += 15 * dispersion
-    score += min(20.0, 10000.0 / (solver_steps + 1))
+    score += 10 * density_score
+    score += 10 * balance_score
+    score += min(15.0, 10000.0 / (solver_steps + 1))
     # 盤面サイズに対するループ長の割合を 0~1 で計算しスコアに加算
     max_len = 2 * (len(clues) + len(clues[0]))
     length_ratio = min(1.0, loop_length / max_len) if max_len else 0.0
