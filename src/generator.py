@@ -146,6 +146,15 @@ def _calculate_clues(
     return clues
 
 
+def _count_edges(edges: Dict[str, List[List[bool]]]) -> int:
+    """ループに含まれる辺の総数を数える"""
+
+    # True の数をすべて合計することで長さを求める
+    return sum(sum(row) for row in edges["horizontal"]) + sum(
+        sum(row) for row in edges["vertical"]
+    )
+
+
 ALLOWED_DIFFICULTIES = {"easy", "normal", "hard", "expert"}
 
 
@@ -157,25 +166,42 @@ MIN_HINT_RATIO = {
     "expert": 0.1,
 }
 
+# 生成失敗時に何回まで再試行するか
+RETRY_LIMIT = 3
 
-def _evaluate_difficulty(clues: List[List[int | None]], size: PuzzleSize) -> str:
-    """ヒント密度から単純に難易度を推定する"""
+# ソルバーが探索する最大ステップ数。超えると途中で打ち切る
+MAX_SOLVER_STEPS = 100000
 
-    hint_count = sum(1 for row in clues for v in row if v is not None)
-    ratio = hint_count / (size.rows * size.cols)
-    if ratio >= 0.3:
+
+def _evaluate_difficulty(steps: int, depth: int) -> str:
+    """ソルバー統計から難易度を推定する関数"""
+
+    # 解析ステップ数とバックトラック深さを基準に難易度を決める
+    if steps < 1000 and depth <= 2:
         return "easy"
-    if ratio >= 0.2:
+    if steps < 10000 and depth <= 10:
         return "normal"
-    if ratio >= 0.15:
+    if steps < 100000 and depth <= 30:
         return "hard"
     return "expert"
 
 
 def _count_solutions(
-    clues: List[List[int | None]], size: PuzzleSize, *, limit: int = 2
-) -> int:
-    """バックトラックで解の個数を数える簡易ソルバー"""
+    clues: List[List[int | None]],
+    size: PuzzleSize,
+    *,
+    limit: int = 2,
+    return_stats: bool = False,
+    step_limit: int | None = None,
+) -> int | tuple[int, Dict[str, int]]:
+    """バックトラックで解の個数を数える簡易ソルバー
+
+    :param return_stats: True のとき解析ステップ数などを返す
+    :param step_limit: ステップ数の上限。None なら制限なし
+    """
+
+    if step_limit is None and return_stats:
+        step_limit = MAX_SOLVER_STEPS
 
     # 辺リストとセル・頂点の参照テーブルを構築
     edges_list: list[tuple[str, int, int]] = []
@@ -220,9 +246,16 @@ def _count_solutions(
     cell_unknown = [[4 for _ in range(size.cols)] for _ in range(size.rows)]
 
     solutions = 0
+    steps = 0
+    max_depth = 0
 
-    def dfs(idx: int) -> None:
-        nonlocal solutions
+    def dfs(idx: int, depth: int) -> None:
+        nonlocal solutions, steps, max_depth
+        steps += 1
+        if depth > max_depth:
+            max_depth = depth
+        if step_limit is not None and steps > step_limit:
+            return
         if solutions >= limit:
             return
         if idx == n:
@@ -301,7 +334,7 @@ def _count_solutions(
                         ok = False
                         break
             if ok:
-                dfs(idx + 1)
+                dfs(idx + 1, depth + 1)
 
             for vr, vc in vertices:
                 vertex_degree[vr][vc] -= int(val)
@@ -311,7 +344,9 @@ def _count_solutions(
                 cell_unknown[cr][cc] += 1
         edge_state[idx] = False
 
-    dfs(0)
+    dfs(0, 0)
+    if return_stats:
+        return solutions, {"steps": steps, "max_depth": max_depth}
     return solutions
 
 
@@ -330,21 +365,30 @@ def _reduce_clues(
         original = result[r][c]
         result[r][c] = None
         hint_count = sum(1 for row in result for v in row if v is not None)
-        if hint_count < min_hint or _count_solutions(result, size, limit=2) != 1:
+        if (
+            hint_count < min_hint
+            or _count_solutions(result, size, limit=2, step_limit=10000) != 1
+        ):
             result[r][c] = original
 
     return result
 
 
 def generate_puzzle(
-    rows: int, cols: int, difficulty: str = "normal", *, seed: int | None = None
-) -> Puzzle:
+    rows: int,
+    cols: int,
+    difficulty: str = "normal",
+    *,
+    seed: int | None = None,
+    return_stats: bool = False,
+) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
     """簡易な盤面を生成して返す
 
     :param rows: 盤面の行数
     :param cols: 盤面の列数
     :param difficulty: 難易度ラベル
     :param seed: 乱数シード。再現したいときに指定する
+    :param return_stats: True なら生成統計も返す
     """
 
     if difficulty not in ALLOWED_DIFFICULTIES:
@@ -357,44 +401,108 @@ def generate_puzzle(
     logger.info("盤面生成開始: %dx%d difficulty=%s", rows, cols, difficulty)
 
     size = PuzzleSize(rows=rows, cols=cols)
-    step_time = time.perf_counter()
-    edges = _create_empty_edges(size)
-    logger.info("空の盤面作成: %.3f 秒", time.perf_counter() - step_time)
 
-    step_time = time.perf_counter()
-    _generate_random_loop(edges, size)
-    logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - step_time)
+    last_edges: Dict[str, List[List[bool]]] | None = None
+    for attempt in range(RETRY_LIMIT):
+        step_time = time.perf_counter()
+        edges = _create_empty_edges(size)
+        logger.info("空の盤面作成: %.3f 秒", time.perf_counter() - step_time)
 
-    step_time = time.perf_counter()
-    clues = _calculate_clues(edges, size)
-    logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
+        step_time = time.perf_counter()
+        _generate_random_loop(edges, size)
+        loop_length = _count_edges(edges)
+        logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - step_time)
 
-    # 難易度毎の最小ヒント数を算出しヒントを削減
-    min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
-    clues = _reduce_clues(clues, size, min_hint=min_hint)
+        if loop_length < 2 * (rows + cols):
+            logger.warning("ループ長が不足したため再試行します")
+            continue
 
-    # 削減後のヒントで解が一意か確認
-    if _count_solutions(clues, size, limit=2) != 1:
-        logger.warning("一意性を確認できなかったためヒントを再計算します")
-        clues = _calculate_clues(edges, size)
+        step_time = time.perf_counter()
+        clues_all = _calculate_clues(edges, size)
+        logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    puzzle: Puzzle = {
-        "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
-        "size": {"rows": rows, "cols": cols},
-        "clues": clues,
-        "solutionEdges": edges,
-        "difficulty": difficulty,
-        "difficultyEval": _evaluate_difficulty(clues, size),
-        "createdBy": "auto-gen-v1",
-        "createdAt": datetime.utcnow().date().isoformat(),
-    }
-    step_time = time.perf_counter()
-    # 生成した結果が仕様を満たすか簡易チェック
-    validate_puzzle(puzzle)
-    logger.info("検証完了: %.3f 秒", time.perf_counter() - step_time)
-    logger.info("盤面生成終了: %.3f 秒", time.perf_counter() - start_time)
-    return puzzle
+        min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
+        clues = _reduce_clues(clues_all, size, min_hint=min_hint)
+
+        sol_result = _count_solutions(
+            clues, size, limit=2, return_stats=True, step_limit=MAX_SOLVER_STEPS
+        )
+        solutions, solver_stats = sol_result
+        if solutions != 1:
+            logger.warning("解が一意でないためヒントを再計算します")
+            clues = clues_all
+            sol_result = _count_solutions(
+                clues, size, limit=2, return_stats=True, step_limit=MAX_SOLVER_STEPS
+            )
+            solutions, solver_stats = sol_result
+            if solutions != 1:
+                logger.warning("再試行します")
+                last_edges = edges
+                continue
+
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        puzzle: Puzzle = {
+            "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
+            "size": {"rows": rows, "cols": cols},
+            "clues": clues,
+            "solutionEdges": edges,
+            "difficulty": difficulty,
+            "difficultyEval": _evaluate_difficulty(
+                solver_stats["steps"], solver_stats["max_depth"]
+            ),
+            "createdBy": "auto-gen-v1",
+            "createdAt": datetime.utcnow().date().isoformat(),
+        }
+
+        # 生成した結果が仕様を満たすか簡易チェック
+        validate_puzzle(puzzle)
+
+        stats = {
+            "loop_length": loop_length,
+            "hint_count": sum(1 for row in clues for v in row if v is not None),
+            "solver_steps": solver_stats["steps"],
+            "solver_max_depth": solver_stats["max_depth"],
+        }
+        logger.info("盤面生成成功: %.3f 秒", time.perf_counter() - start_time)
+        if return_stats:
+            return puzzle, stats
+        return puzzle
+
+    # すべて失敗した場合は最後に計算した edges を使用してフルヒントで返す
+    if last_edges is not None:
+        clues_all = _calculate_clues(last_edges, size)
+        sol_result = _count_solutions(
+            clues_all, size, limit=2, return_stats=True, step_limit=MAX_SOLVER_STEPS
+        )
+        _, solver_stats = sol_result
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        puzzle = {
+            "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
+            "size": {"rows": rows, "cols": cols},
+            "clues": clues_all,
+            "solutionEdges": last_edges,
+            "difficulty": difficulty,
+            "difficultyEval": _evaluate_difficulty(
+                solver_stats["steps"], solver_stats["max_depth"]
+            ),
+            "createdBy": "auto-gen-v1",
+            "createdAt": datetime.utcnow().date().isoformat(),
+        }
+        validate_puzzle(puzzle)
+        stats = {
+            "loop_length": _count_edges(last_edges),
+            "hint_count": sum(1 for row in clues_all for v in row if v is not None),
+            "solver_steps": solver_stats["steps"],
+            "solver_max_depth": solver_stats["max_depth"],
+        }
+        logger.info(
+            "盤面生成成功(フォールバック): %.3f 秒", time.perf_counter() - start_time
+        )
+        if return_stats:
+            return puzzle, stats
+        return puzzle
+
+    raise ValueError("盤面生成に失敗しました")
 
 
 def save_puzzle(puzzle: Puzzle, directory: str | Path = "data") -> Path:
