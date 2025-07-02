@@ -242,6 +242,44 @@ def _reduce_clues(
     return result
 
 
+def _build_puzzle_dict(
+    *,
+    size: PuzzleSize,
+    edges: Dict[str, List[List[bool]]],
+    clues: List[List[int | None]],
+    clues_full: List[List[int]],
+    loop_length: int,
+    curve_ratio: float,
+    difficulty: str,
+    solver_stats: Dict[str, int],
+    symmetry: Optional[str],
+) -> Puzzle:
+    """パズル用の辞書オブジェクトを構築するヘルパー関数"""
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    puzzle: Puzzle = {
+        "schemaVersion": SCHEMA_VERSION,
+        "id": f"sl_{size.rows}x{size.cols}_{difficulty}_{timestamp}",
+        "size": {"rows": size.rows, "cols": size.cols},
+        "clues": clues,
+        "cluesFull": clues_full,
+        "solutionEdges": edges,
+        "loopStats": {"length": loop_length, "curveRatio": curve_ratio},
+        "solverStats": {
+            "steps": solver_stats["steps"],
+            "maxDepth": solver_stats["max_depth"],
+        },
+        "difficulty": difficulty,
+        "difficultyEval": _evaluate_difficulty(
+            solver_stats["steps"], solver_stats["max_depth"]
+        ),
+        "symmetry": symmetry,
+        "createdBy": "auto-gen-v1",
+        "createdAt": datetime.utcnow().date().isoformat(),
+    }
+    return puzzle
+
+
 def generate_puzzle(
     rows: int,
     cols: int,
@@ -343,28 +381,17 @@ def generate_puzzle(
                 last_edges = edges
                 continue
 
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-        puzzle: Puzzle = {
-            "schemaVersion": SCHEMA_VERSION,
-            "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
-            "size": {"rows": rows, "cols": cols},
-            "clues": clues,
-            "cluesFull": clues_all,
-            "solutionEdges": edges,
-            "loopStats": {"length": loop_length, "curveRatio": curve_ratio},
-            # ソルバーの解析統計を JSON に含める
-            "solverStats": {
-                "steps": solver_stats["steps"],
-                "maxDepth": solver_stats["max_depth"],
-            },
-            "difficulty": difficulty,
-            "difficultyEval": _evaluate_difficulty(
-                solver_stats["steps"], solver_stats["max_depth"]
-            ),
-            "symmetry": symmetry,
-            "createdBy": "auto-gen-v1",
-            "createdAt": datetime.utcnow().date().isoformat(),
-        }
+        puzzle = _build_puzzle_dict(
+            size=size,
+            edges=edges,
+            clues=clues,
+            clues_full=clues_all,
+            loop_length=loop_length,
+            curve_ratio=curve_ratio,
+            difficulty=difficulty,
+            solver_stats=solver_stats,
+            symmetry=symmetry,
+        )
 
         # 生成した結果が仕様を満たすか簡易チェック
         validate_puzzle(puzzle)
@@ -402,30 +429,17 @@ def generate_puzzle(
                 step_limit=MAX_SOLVER_STEPS,
             ),
         )
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-        puzzle = {
-            "schemaVersion": SCHEMA_VERSION,
-            "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
-            "size": {"rows": rows, "cols": cols},
-            "clues": clues_all,
-            "cluesFull": clues_all,
-            "solutionEdges": last_edges,
-            "loopStats": {
-                "length": _count_edges(last_edges),
-                "curveRatio": curve_ratio_fb,
-            },
-            "solverStats": {
-                "steps": solver_stats["steps"],
-                "maxDepth": solver_stats["max_depth"],
-            },
-            "difficulty": difficulty,
-            "difficultyEval": _evaluate_difficulty(
-                solver_stats["steps"], solver_stats["max_depth"]
-            ),
-            "symmetry": symmetry,
-            "createdBy": "auto-gen-v1",
-            "createdAt": datetime.utcnow().date().isoformat(),
-        }
+        puzzle = _build_puzzle_dict(
+            size=size,
+            edges=last_edges,
+            clues=clues_all,
+            clues_full=clues_all,
+            loop_length=_count_edges(last_edges),
+            curve_ratio=curve_ratio_fb,
+            difficulty=difficulty,
+            solver_stats=solver_stats,
+            symmetry=symmetry,
+        )
         validate_puzzle(puzzle)
         stats = {
             "loop_length": _count_edges(last_edges),
