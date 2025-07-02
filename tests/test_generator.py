@@ -78,6 +78,16 @@ def test_generate_puzzle_theme_border() -> None:
     assert length == 2 * (size.rows + size.cols)
 
 
+def test_generate_puzzle_theme_maze() -> None:
+    puzzle = cast(
+        Dict[str, Any],
+        generator.generate_puzzle(3, 3, difficulty="easy", theme="maze", seed=11),
+    )
+    validator.validate_puzzle(puzzle)
+    assert puzzle["theme"] == "maze"
+    assert puzzle["generationParams"]["theme"] == "maze"
+
+
 def test_validate_puzzle() -> None:
     puzzle = cast(Dict[str, Any], generator.generate_puzzle(4, 4, seed=0))
     # エラーが出ないことを確認

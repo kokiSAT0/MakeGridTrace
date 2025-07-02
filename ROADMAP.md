@@ -6,8 +6,8 @@
 
 - [x] **ヒント最適化(Simulated Annealing)**
   - 仕様書の生成パイプライン D で予定されている焼きなまし最適化を実装しました【F:MakeGridTraceSPECnew.md†L144-L160】。
-- [ ] **テーマ(`theme`)の拡充**
-  - 現在は `"border"` のみ対応。将来的に複数テーマを追加予定【F:MakeGridTraceSPECnew.md†L176-L177】。
+- [x] **テーマ(`theme`)の拡充**
+  - `"maze"` テーマを追加し、ランダム生成から曲がりの多いループを選択するロジックを実装しました【F:src/generator.py†L166-L191】。
 - [ ] **品質指標(Quality Score)の改良**
   - 曲率比率とヒント分散度以外の統計も用いて計算する計画【F:MakeGridTraceSPECnew.md†L177-L179】。
 - [ ] **solverStats の詳細化**
