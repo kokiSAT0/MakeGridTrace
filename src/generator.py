@@ -12,7 +12,12 @@ import random
 import concurrent.futures
 from typing import Any, Dict, List, Optional, cast
 
-from .solver import PuzzleSize, calculate_clues, count_solutions
+try:
+    # パッケージとして実行された場合の相対インポート
+    from .solver import PuzzleSize, calculate_clues, count_solutions
+except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+    # スクリプトとして直接実行されたときは同じディレクトリからインポートする
+    from solver import PuzzleSize, calculate_clues, count_solutions
 
 
 logging.basicConfig(
