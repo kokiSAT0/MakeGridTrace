@@ -62,7 +62,7 @@ python src/generator.py 4 4 --difficulty normal
 - `cols` : 盤面の列数。必須の数値です。
 - `--difficulty` : 難易度ラベル。`easy` / `normal` / `hard` / `expert` から選択。省略すると `easy`。
 - `--symmetry` : `rotational` を指定すると盤面を 180 度回転対称にします。
-- `--theme` : 現状は `border` を指定できます。盤面の外周だけを使ったテーマです。
+- `--theme` : `border` を指定すると外周のみを使った盤面を生成します。
 - `--seed` : 乱数シード。再現したいときに数値を指定します。
 - `--timeout` : 生成処理のタイムアウト秒数。指定しない場合は無制限。
 - `--parallel` : 並列生成プロセス数。複数指定すると生成を複数プロセスで試行します。

@@ -11,6 +11,7 @@ from src import generator  # noqa: E402
 from src import puzzle_io  # noqa: E402
 from src import validator  # noqa: E402
 from src import solver  # noqa: E402
+from src import puzzle_builder  # noqa: E402
 
 
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
@@ -194,6 +195,16 @@ def test_generate_puzzle_parallel() -> None:
         Dict[str, Any], generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
     )
     validator.validate_puzzle(puzzle)
+
+
+def test_hint_dispersion_helper() -> None:
+    clues = [
+        [0, None, 2, None],
+        [None, None, None, None],
+        [1, None, 3, None],
+    ]
+    disp = puzzle_builder._calculate_hint_dispersion(clues)
+    assert 0.0 < disp < 1.0
 
 
 @pytest.mark.slow

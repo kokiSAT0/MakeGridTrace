@@ -19,6 +19,39 @@ SCHEMA_VERSION = "2.0"
 # MAX_SOLVER_STEPS と _evaluate_difficulty は constants モジュールに移動
 
 
+def _calculate_hint_dispersion(clues: List[List[int | None]]) -> float:
+    """ヒントが盤面に均等に散らばっている度合いを返す
+
+    盤面を 3x3 のブロックに分け、各ブロックに少なくとも1つヒントが存在する
+    割合を計算することでヒントの偏りを数値化する。
+    """
+
+    rows = len(clues)
+    cols = len(clues[0]) if rows > 0 else 0
+    if rows == 0 or cols == 0:
+        return 0.0
+
+    block_rows = (rows + 2) // 3
+    block_cols = (cols + 2) // 3
+    total = block_rows * block_cols
+    filled = 0
+
+    for br in range(block_rows):
+        for bc in range(block_cols):
+            found = False
+            for r in range(br * 3, min((br + 1) * 3, rows)):
+                for c in range(bc * 3, min((bc + 1) * 3, cols)):
+                    if clues[r][c] is not None:
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
+                filled += 1
+
+    return filled / total if total else 0.0
+
+
 def _calculate_quality_score(
     clues: List[List[int | None]], curve_ratio: float, solver_steps: int
 ) -> float:
@@ -34,7 +67,10 @@ def _calculate_quality_score(
     else:
         entropy = -(p * math.log2(p) + (1 - p) * math.log2(1 - p))
 
+    dispersion = _calculate_hint_dispersion(clues)
+
     score = 20 * math.log10(max(curve_ratio * 100, 0.01)) + 25 * entropy
+    score += 15 * dispersion
     score += min(20.0, 10000.0 / (solver_steps + 1))
     return round(max(0.0, min(100.0, score)), 2)
 
@@ -120,4 +156,9 @@ def _build_puzzle_dict(
     return puzzle
 
 
-__all__ = ["_build_puzzle_dict", "_reduce_clues", "_calculate_quality_score"]
+__all__ = [
+    "_build_puzzle_dict",
+    "_reduce_clues",
+    "_calculate_quality_score",
+    "_calculate_hint_dispersion",
+]
