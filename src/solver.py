@@ -131,7 +131,16 @@ def count_solutions(
     return_stats: bool = False,
     step_limit: int | None = None,
 ) -> int | tuple[int, Dict[str, int]]:
-    """バックトラックで解の個数を数える簡易ソルバー"""
+    """バックトラックで解の個数を数える簡易ソルバー
+
+    ``return_stats`` が ``True`` の場合は探索統計を返す。
+    統計には以下の項目が含まれる。
+
+    - ``steps``: 再帰呼び出し回数
+    - ``max_depth``: 最大再帰深さ
+    - ``rule_vertex``: 頂点次数が 2 を超えて枝刈りした回数
+    - ``rule_clue``: ヒント矛盾で枝刈りした回数
+    """
 
     if step_limit is None and return_stats:
         step_limit = 500000  # 解析ステップ数の上限
@@ -141,9 +150,11 @@ def count_solutions(
     solutions = 0
     steps = 0
     max_depth = 0
+    rule_vertex = 0
+    rule_clue = 0
 
     def dfs(idx: int, depth: int) -> None:
-        nonlocal solutions, steps, max_depth
+        nonlocal solutions, steps, max_depth, rule_vertex, rule_clue
         steps += 1
         if depth > max_depth:
             max_depth = depth
@@ -205,6 +216,7 @@ def count_solutions(
             ok = True
             for vr, vc in edge.vertices:
                 if board.vertex_degree[vr][vc] > 2:
+                    rule_vertex += 1
                     ok = False
                     break
             if ok:
@@ -215,6 +227,7 @@ def count_solutions(
                     used = board.cell_count[cr][cc]
                     unknown = board.cell_unknown[cr][cc]
                     if used > clue or used + unknown < clue:
+                        rule_clue += 1
                         ok = False
                         break
             if ok:
@@ -229,7 +242,12 @@ def count_solutions(
 
     dfs(0, 0)
     if return_stats:
-        return solutions, {"steps": steps, "max_depth": max_depth}
+        return solutions, {
+            "steps": steps,
+            "max_depth": max_depth,
+            "rule_vertex": rule_vertex,
+            "rule_clue": rule_clue,
+        }
     return solutions
 
 

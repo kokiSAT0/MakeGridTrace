@@ -5,7 +5,6 @@ from __future__ import annotations
 # datetime モジュールから UTC 定数も合わせてインポート
 from datetime import datetime, UTC
 import math
-import statistics
 import random
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
@@ -96,7 +95,9 @@ def _calculate_quality_score(
 
     # 行・列ごとのヒント数のばらつきを評価 (均一なら 1.0)
     row_counts = [sum(1 for v in row if v is not None) for row in clues]
-    col_counts = [sum(1 for row in clues if row[c] is not None) for c in range(len(clues[0]))]
+    col_counts = [
+        sum(1 for row in clues if row[c] is not None) for c in range(len(clues[0]))
+    ]
     if hint_count > 0:
         row_balance = 1.0 - (max(row_counts) - min(row_counts)) / hint_count
         col_balance = 1.0 - (max(col_counts) - min(col_counts)) / hint_count
@@ -256,6 +257,8 @@ def _build_puzzle_dict(
         "solverStats": {
             "steps": solver_stats["steps"],
             "maxDepth": solver_stats["max_depth"],
+            "ruleVertex": solver_stats.get("rule_vertex", 0),
+            "ruleClue": solver_stats.get("rule_clue", 0),
         },
         "difficulty": difficulty,
         "difficultyEval": _evaluate_difficulty(
