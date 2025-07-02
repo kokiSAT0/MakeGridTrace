@@ -38,7 +38,8 @@ from .validator import validate_puzzle, _has_zero_adjacent
 from .constants import MAX_SOLVER_STEPS
 from .puzzle_builder import _reduce_clues, _build_puzzle_dict
 
-from .types import Puzzle
+# 標準ライブラリの ``types`` と名前が衝突しないよう ``puzzle_types`` に変更
+from .puzzle_types import Puzzle
 
 
 logger = logging.getLogger(__name__)
