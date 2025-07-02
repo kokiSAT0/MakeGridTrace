@@ -6,11 +6,23 @@ from __future__ import annotations
 from datetime import datetime, UTC
 import math
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from .solver import PuzzleSize, count_solutions
-from .constants import MAX_SOLVER_STEPS, _evaluate_difficulty
-from . import validator
+if TYPE_CHECKING:
+    from src.solver import PuzzleSize, count_solutions
+    from src.constants import MAX_SOLVER_STEPS, _evaluate_difficulty
+    from src import validator
+else:
+    try:
+        # パッケージとして実行された場合の相対インポート
+        from .solver import PuzzleSize, count_solutions
+        from .constants import MAX_SOLVER_STEPS, _evaluate_difficulty
+        from . import validator
+    except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+        # スクリプトとして直接実行されたときは同じディレクトリからインポートする
+        from solver import PuzzleSize, count_solutions
+        from constants import MAX_SOLVER_STEPS, _evaluate_difficulty
+        import validator
 
 Puzzle = Dict[str, Any]
 

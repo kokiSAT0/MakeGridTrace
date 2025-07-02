@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, TYPE_CHECKING
 import random
 
-from .solver import PuzzleSize
+if TYPE_CHECKING:
+    from src.solver import PuzzleSize
+else:
+    try:
+        # パッケージとして実行された場合の相対インポート
+        from .solver import PuzzleSize
+    except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+        # スクリプトとして直接実行されたときは同じディレクトリからインポートする
+        from solver import PuzzleSize
 
 
 def _create_empty_edges(size: PuzzleSize) -> Dict[str, List[List[bool]]]:
