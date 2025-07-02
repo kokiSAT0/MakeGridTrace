@@ -100,6 +100,28 @@ def test_generate_puzzle_symmetry() -> None:
     assert puzzle["symmetry"] == "rotational"
 
 
+def test_solution_edges_rotational() -> None:
+    puzzle = generator.generate_puzzle(4, 4, symmetry="rotational", seed=42)
+    edges = puzzle["solutionEdges"]
+    size = solver.PuzzleSize(4, 4)
+    horizontal = edges["horizontal"]
+    vertical = edges["vertical"]
+
+    # 水平線が回転対称になっているか確認
+    for r in range(size.rows + 1):
+        for c in range(size.cols):
+            sr = size.rows - r
+            sc = size.cols - c - 1
+            assert horizontal[r][c] == horizontal[sr][sc]
+
+    # 垂直線も同様にチェック
+    for r in range(size.rows):
+        for c in range(size.cols + 1):
+            sr = size.rows - r - 1
+            sc = size.cols - c
+            assert vertical[r][c] == vertical[sr][sc]
+
+
 def test_generate_puzzle_parallel() -> None:
     puzzle = generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
     generator.validate_puzzle(puzzle)

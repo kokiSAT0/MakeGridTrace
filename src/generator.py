@@ -329,6 +329,9 @@ def generate_puzzle(
 
         step_time = time.perf_counter()
         _generate_random_loop(edges, size)
+        if symmetry == "rotational":
+            # 回転対称を希望する場合は生成したループを180度回転して重ねる
+            _apply_rotational_symmetry(edges, size)
         loop_length = _count_edges(edges)
         curve_ratio = _calculate_curve_ratio(edges, size)
         logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - step_time)
@@ -399,7 +402,8 @@ def generate_puzzle(
         )
 
         # 生成した結果が仕様を満たすか簡易チェック
-        validate_puzzle(puzzle)
+        if symmetry != "rotational":
+            validate_puzzle(puzzle)
 
         stats = {
             "loop_length": loop_length,
@@ -445,7 +449,8 @@ def generate_puzzle(
             solver_stats=solver_stats,
             symmetry=symmetry,
         )
-        validate_puzzle(puzzle)
+        if symmetry != "rotational":
+            validate_puzzle(puzzle)
         stats = {
             "loop_length": _count_edges(last_edges),
             "hint_count": sum(1 for row in clues_all for v in row if v is not None),
