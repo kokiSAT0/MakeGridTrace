@@ -17,7 +17,8 @@
 |------|----|------|------|
 | `id` | string | ✔ | 一意な問題 ID。ファイル名や URL に使用可 |
 | `size` | object | ✔ | 盤面サイズ `{ "rows": <int>, "cols": <int> }` |
-| `clues` | array[][] | ✔ | セルヒント (0–3) または `null`<br>サイズ = `rows × cols` |
+| `clues` | array[][] | ✔ | 出題用ヒント (0–3) または `null`<br>サイズ = `rows × cols` |
+| `cluesFull` | array[][] | ✔ | 全てのセルに数値が入った解答用ヒント | 
 | `solutionEdges` | object | ✔ | 正解ループの辺情報（後述） |
 | `difficulty` | string | 推奨 | `"easy"`, `"normal"`, `"hard"`, `"expert"` など |
 | `createdBy` | string | 任意 | 作成者名 |
@@ -26,9 +27,14 @@
 ---
 
 ## 3. `clues` フィールド
-- 盤面セルごとのヒント数字を 2 次元配列で保持  
-- **空白マス**は `null`  
+- 出題用のヒント数字を 2 次元配列で保持します
+- **空白マス**は `null`
 - 行と列は **0 インデックス**（配列の行順・列順がそのまま盤面に対応）
+
+### `cluesFull` との違い
+`cluesFull` にはすべてのセルに数値が入った解答用ヒントを記録します。`clues` はそ
+れを削減した出題データで、`null` のセルがあってもかまいません。アプリは `clues`
+を表示し、内部的には `cluesFull` を使って正解判定を行います。
 
 ```jsonc
 "clues": [
