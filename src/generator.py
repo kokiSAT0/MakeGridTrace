@@ -95,12 +95,24 @@ def _validate_edges(edges: Dict[str, List[List[bool]]], size: PuzzleSize) -> boo
 
 
 def _create_loop(
-    size: PuzzleSize, rng: random.Random, *, symmetry: Optional[str]
+    size: PuzzleSize,
+    rng: random.Random,
+    *,
+    symmetry: Optional[str],
+    theme: Optional[str],
 ) -> tuple[Dict[str, List[List[bool]]], int, float]:
-    """ランダムなループを生成し長さと曲率を返す"""
+    """ループを生成し長さと曲率を返す"""
 
     edges = _create_empty_edges(size)
-    _generate_random_loop(edges, size, rng)
+    if theme == "border":
+        for c in range(size.cols):
+            edges["horizontal"][0][c] = True
+            edges["horizontal"][size.rows][c] = True
+        for r in range(size.rows):
+            edges["vertical"][r][0] = True
+            edges["vertical"][r][size.cols] = True
+    else:
+        _generate_random_loop(edges, size, rng)
     if symmetry == "rotational":
         _apply_rotational_symmetry(edges, size)
         if not _validate_edges(edges, size):
@@ -125,6 +137,7 @@ def generate_puzzle(
     *,
     seed: int | None = None,
     symmetry: Optional[str] = None,
+    theme: Optional[str] = None,
     return_stats: bool = False,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
     """簡易な盤面を生成して返す
@@ -155,6 +168,7 @@ def generate_puzzle(
         "difficulty": difficulty,
         "seed": seed,
         "symmetry": symmetry,
+        "theme": theme,
     }
 
     seed_hash = hashlib.sha256(str(seed).encode("utf-8")).hexdigest()
@@ -167,7 +181,9 @@ def generate_puzzle(
     last_edges: Dict[str, List[List[bool]]] | None = None
     for attempt in range(RETRY_LIMIT):
         step_time = time.perf_counter()
-        edges, loop_length, curve_ratio = _create_loop(size, rng, symmetry=symmetry)
+        edges, loop_length, curve_ratio = _create_loop(
+            size, rng, symmetry=symmetry, theme=theme
+        )
         logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - step_time)
 
         if loop_length < 2 * (rows + cols):
@@ -226,6 +242,7 @@ def generate_puzzle(
             difficulty=difficulty,
             solver_stats=solver_stats,
             symmetry=symmetry,
+            theme=theme,
             generation_params=generation_params,
             seed_hash=seed_hash,
         )
@@ -277,6 +294,7 @@ def generate_puzzle(
             difficulty=difficulty,
             solver_stats=solver_stats,
             symmetry=symmetry,
+            theme=theme,
             generation_params=generation_params,
             seed_hash=seed_hash,
         )

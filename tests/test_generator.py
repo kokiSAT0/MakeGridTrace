@@ -34,6 +34,7 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
         "difficulty": "normal",
         "seed": 0,
         "symmetry": None,
+        "theme": None,
     }
     assert puzzle["seedHash"] == hashlib.sha256(b"0").hexdigest()
     calc = solver.calculate_clues(puzzle["solutionEdges"], solver.PuzzleSize(4, 4))
@@ -56,6 +57,20 @@ def test_save_puzzle(tmp_path: Path) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["id"].startswith("sl_4x4_easy_")
     assert "solverStats" in data
+
+
+def test_generate_puzzle_theme_border() -> None:
+    puzzle = cast(
+        Dict[str, Any], generator.generate_puzzle(3, 3, difficulty="easy", theme="border")
+    )
+    validator.validate_puzzle(puzzle)
+    assert puzzle["theme"] == "border"
+    assert puzzle["generationParams"]["theme"] == "border"
+    size = solver.PuzzleSize(3, 3)
+    length = sum(sum(row) for row in puzzle["solutionEdges"]["horizontal"]) + sum(
+        sum(row) for row in puzzle["solutionEdges"]["vertical"]
+    )
+    assert length == 2 * (size.rows + size.cols)
 
 
 def test_validate_puzzle() -> None:
@@ -189,6 +204,7 @@ def test_generation_params_and_seedhash() -> None:
         "difficulty": "normal",
         "seed": 42,
         "symmetry": "rotational",
+        "theme": None,
     }
     assert puzzle["generationParams"] == expected
     assert puzzle["seedHash"] == hashlib.sha256(b"42").hexdigest()
