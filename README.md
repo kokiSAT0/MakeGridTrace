@@ -53,7 +53,7 @@ puzzle_sym = generator.generate_puzzle(
 `generator.py` は直接実行することもできます。実行時は少なくとも盤面の行数と列数を指定してください。
 
 ```bash
-python src/generator.py 4 4 --difficulty normal
+python -m src.generator 4 4 --difficulty normal
 ```
 
 上記コマンドでは 4×4 の盤面を難易度 `normal` で生成し、`data/map_gridtrace.json` に保存します。保存後は盤面を ASCII 形式で標準出力に表示します。
