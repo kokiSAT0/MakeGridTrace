@@ -2,6 +2,7 @@ import json
 import hashlib
 from pathlib import Path
 import sys
+from typing import Any, Dict, cast
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +14,7 @@ from src import solver  # noqa: E402
 
 
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
-    puzzle = generator.generate_puzzle(4, 4, seed=0)
+    puzzle = cast(Dict[str, Any], generator.generate_puzzle(4, 4, seed=0))
     # JSON に変換できるか確認
     data = json.dumps(puzzle)
     assert "clues" in puzzle
@@ -44,7 +45,9 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
 
 
 def test_save_puzzle(tmp_path: Path) -> None:
-    puzzle = generator.generate_puzzle(4, 4, difficulty="easy", seed=1)
+    puzzle = cast(
+        Dict[str, Any], generator.generate_puzzle(4, 4, difficulty="easy", seed=1)
+    )
     path = puzzle_io.save_puzzle(puzzle, directory=tmp_path)
     assert path.exists()
     assert path.name == "map_gridtrace.json"
@@ -54,13 +57,13 @@ def test_save_puzzle(tmp_path: Path) -> None:
 
 
 def test_validate_puzzle() -> None:
-    puzzle = generator.generate_puzzle(4, 4, seed=0)
+    puzzle = cast(Dict[str, Any], generator.generate_puzzle(4, 4, seed=0))
     # エラーが出ないことを確認
     validator.validate_puzzle(puzzle)
 
 
 def test_validate_puzzle_fail() -> None:
-    puzzle = generator.generate_puzzle(4, 4, seed=3)
+    puzzle = cast(Dict[str, Any], generator.generate_puzzle(4, 4, seed=3))
     # ループに含まれる辺を一つ壊して検証エラーを期待
     broken = False
     for r, row in enumerate(puzzle["solutionEdges"]["horizontal"]):
@@ -78,7 +81,9 @@ def test_validate_puzzle_fail() -> None:
 
 
 def test_zero_adjacent_fail() -> None:
-    puzzle = generator.generate_puzzle(3, 3, difficulty="easy", seed=4)
+    puzzle = cast(
+        Dict[str, Any], generator.generate_puzzle(3, 3, difficulty="easy", seed=4)
+    )
     # 0 を縦に並べて検証エラーを期待
     puzzle["cluesFull"][0][0] = 0
     puzzle["cluesFull"][1][0] = 0
@@ -94,7 +99,7 @@ def test_has_zero_adjacent_helper() -> None:
 
 
 def test_generator_zero_not_adjacent() -> None:
-    puzzle = generator.generate_puzzle(3, 3, seed=10)
+    puzzle = cast(Dict[str, Any], generator.generate_puzzle(3, 3, seed=10))
     assert not validator._has_zero_adjacent(puzzle["cluesFull"])
 
 
@@ -108,7 +113,9 @@ def test_generate_multiple_and_save(tmp_path: Path) -> None:
 
 
 def test_puzzle_to_ascii() -> None:
-    puzzle = generator.generate_puzzle(2, 2, difficulty="easy", seed=6)
+    puzzle = cast(
+        Dict[str, Any], generator.generate_puzzle(2, 2, difficulty="easy", seed=6)
+    )
     ascii_art = generator.puzzle_to_ascii(puzzle)
     assert isinstance(ascii_art, str)
     lines = ascii_art.splitlines()
@@ -119,12 +126,16 @@ def test_puzzle_to_ascii() -> None:
 
 
 def test_generate_puzzle_symmetry() -> None:
-    puzzle = generator.generate_puzzle(4, 4, symmetry="rotational", seed=7)
+    puzzle = cast(
+        Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="rotational", seed=7)
+    )
     assert puzzle["symmetry"] == "rotational"
 
 
 def test_solution_edges_rotational() -> None:
-    puzzle = generator.generate_puzzle(4, 4, symmetry="rotational", seed=42)
+    puzzle = cast(
+        Dict[str, Any], generator.generate_puzzle(4, 4, symmetry="rotational", seed=42)
+    )
     edges = puzzle["solutionEdges"]
     size = solver.PuzzleSize(4, 4)
     horizontal = edges["horizontal"]
@@ -146,13 +157,18 @@ def test_solution_edges_rotational() -> None:
 
 
 def test_generate_puzzle_parallel() -> None:
-    puzzle = generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
+    puzzle = cast(
+        Dict[str, Any], generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
+    )
     validator.validate_puzzle(puzzle)
 
 
 def test_generation_params_and_seedhash() -> None:
-    puzzle = generator.generate_puzzle(
-        3, 3, difficulty="normal", seed=42, symmetry="rotational"
+    puzzle = cast(
+        Dict[str, Any],
+        generator.generate_puzzle(
+            3, 3, difficulty="normal", seed=42, symmetry="rotational"
+        ),
     )
     expected = {
         "rows": 3,
@@ -166,7 +182,7 @@ def test_generation_params_and_seedhash() -> None:
 
 
 def test_count_solutions_unique() -> None:
-    puzzle = generator.generate_puzzle(3, 3, seed=9)
+    puzzle = cast(Dict[str, Any], generator.generate_puzzle(3, 3, seed=9))
     size = solver.PuzzleSize(3, 3)
     count = solver.count_solutions(puzzle["clues"], size, limit=2, step_limit=500000)
     assert count == 1
