@@ -31,9 +31,17 @@ def main() -> None:
     parser.add_argument(
         "count_each", type=int, default=1, help="各難易度の生成数 (デフォルト:1)"
     )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="並列生成プロセス数",
+    )
     args = parser.parse_args()
 
-    puzzles = generate_multiple_puzzles(args.rows, args.cols, args.count_each)
+    puzzles = generate_multiple_puzzles(
+        args.rows, args.cols, args.count_each, jobs=args.jobs
+    )
     path = save_puzzles(puzzles)
     print(f"{path} を作成しました")
     # 生成した各パズルを ASCII で表示
