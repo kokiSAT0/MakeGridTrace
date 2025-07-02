@@ -29,6 +29,9 @@ class PuzzleSize:
 
 Puzzle = Dict[str, Any]
 
+# JSON スキーマのバージョン
+SCHEMA_VERSION = "2.0"
+
 
 def _create_empty_edges(size: PuzzleSize) -> Dict[str, List[List[bool]]]:
     """solutionEdges フィールド用の空の二次元配列を作成する"""
@@ -153,6 +156,33 @@ def _count_edges(edges: Dict[str, List[List[bool]]]) -> int:
     return sum(sum(row) for row in edges["horizontal"]) + sum(
         sum(row) for row in edges["vertical"]
     )
+
+
+def _calculate_curve_ratio(
+    edges: Dict[str, List[List[bool]]], size: PuzzleSize
+) -> float:
+    """ループ中の曲がり角割合を計算する関数"""
+
+    curve_count = 0
+    for r in range(size.rows + 1):
+        for c in range(size.cols + 1):
+            connections = []
+            if c < size.cols and edges["horizontal"][r][c]:
+                connections.append("h")
+            if c > 0 and edges["horizontal"][r][c - 1]:
+                connections.append("h")
+            if r < size.rows and edges["vertical"][r][c]:
+                connections.append("v")
+            if r > 0 and edges["vertical"][r - 1][c]:
+                connections.append("v")
+            if (
+                len(connections) == 2
+                and connections.count("h") == 1
+                and connections.count("v") == 1
+            ):
+                curve_count += 1
+    total = _count_edges(edges)
+    return curve_count / total if total > 0 else 0.0
 
 
 ALLOWED_DIFFICULTIES = {"easy", "normal", "hard", "expert"}
@@ -411,6 +441,7 @@ def generate_puzzle(
         step_time = time.perf_counter()
         _generate_random_loop(edges, size)
         loop_length = _count_edges(edges)
+        curve_ratio = _calculate_curve_ratio(edges, size)
         logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - step_time)
 
         if loop_length < 2 * (rows + cols):
@@ -423,6 +454,20 @@ def generate_puzzle(
 
         min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
         clues = _reduce_clues(clues_all, size, min_hint=min_hint)
+
+        def zero_adjacent(cl: List[List[int | None]]) -> bool:
+            for rr in range(size.rows):
+                for cc in range(size.cols):
+                    if cl[rr][cc] == 0:
+                        if rr + 1 < size.rows and cl[rr + 1][cc] == 0:
+                            return True
+                        if cc + 1 < size.cols and cl[rr][cc + 1] == 0:
+                            return True
+            return False
+
+        if zero_adjacent(clues):
+            logger.warning("0 が隣接したため再試行します")
+            continue
 
         sol_result = _count_solutions(
             clues, size, limit=2, return_stats=True, step_limit=MAX_SOLVER_STEPS
@@ -442,10 +487,12 @@ def generate_puzzle(
 
         timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         puzzle: Puzzle = {
+            "schemaVersion": SCHEMA_VERSION,
             "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
             "size": {"rows": rows, "cols": cols},
             "clues": clues,
             "solutionEdges": edges,
+            "loopStats": {"length": loop_length, "curveRatio": curve_ratio},
             "difficulty": difficulty,
             "difficultyEval": _evaluate_difficulty(
                 solver_stats["steps"], solver_stats["max_depth"]
@@ -471,16 +518,30 @@ def generate_puzzle(
     # すべて失敗した場合は最後に計算した edges を使用してフルヒントで返す
     if last_edges is not None:
         clues_all = _calculate_clues(last_edges, size)
+        curve_ratio_fb = _calculate_curve_ratio(last_edges, size)
+        # フォールバックでも 0 の隣接を許さない
+        for rr in range(size.rows):
+            for cc in range(size.cols):
+                if clues_all[rr][cc] == 0:
+                    if rr + 1 < size.rows and clues_all[rr + 1][cc] == 0:
+                        raise ValueError("0 が縦に隣接しています")
+                    if cc + 1 < size.cols and clues_all[rr][cc + 1] == 0:
+                        raise ValueError("0 が横に隣接しています")
         sol_result = _count_solutions(
             clues_all, size, limit=2, return_stats=True, step_limit=MAX_SOLVER_STEPS
         )
         _, solver_stats = sol_result
         timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         puzzle = {
+            "schemaVersion": SCHEMA_VERSION,
             "id": f"sl_{rows}x{cols}_{difficulty}_{timestamp}",
             "size": {"rows": rows, "cols": cols},
             "clues": clues_all,
             "solutionEdges": last_edges,
+            "loopStats": {
+                "length": _count_edges(last_edges),
+                "curveRatio": curve_ratio_fb,
+            },
             "difficulty": difficulty,
             "difficultyEval": _evaluate_difficulty(
                 solver_stats["steps"], solver_stats["max_depth"]
@@ -573,7 +634,10 @@ def save_puzzles(puzzles: List[Puzzle], directory: str | Path = "data") -> Path:
 
 
 def validate_puzzle(puzzle: Puzzle) -> None:
-    """パズルデータの整合性を簡易チェックする関数"""
+    """パズルデータの整合性を簡易チェックする関数
+
+    H-7 ループ長、H-8 0 の隣接禁止、H-9 曲率比率を含む
+    """
 
     # size フィールドの検証
     size_dict = puzzle.get("size")
@@ -676,6 +740,20 @@ def validate_puzzle(puzzle: Puzzle) -> None:
     calculated = _calculate_clues(edges, size)
     if clues != calculated:
         raise ValueError("clues が solutionEdges と一致しません")
+
+    # ハード制約 H-8: 0 の隣接禁止をチェック
+    for r in range(size.rows):
+        for c in range(size.cols):
+            if clues[r][c] == 0:
+                if r + 1 < size.rows and clues[r + 1][c] == 0:
+                    raise ValueError("0 が縦に隣接しています")
+                if c + 1 < size.cols and clues[r][c + 1] == 0:
+                    raise ValueError("0 が横に隣接しています")
+
+    # ハード制約 H-9: 線カーブ比率下限チェック
+    curve_ratio = _calculate_curve_ratio(edges, size)
+    if curve_ratio < 0.15:
+        raise ValueError("線カーブ比率がハード制約を満たしていません")
 
 
 def puzzle_to_ascii(puzzle: Puzzle) -> str:
