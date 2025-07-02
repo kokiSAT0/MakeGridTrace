@@ -6,6 +6,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
 from src import generator  # noqa: E402
+from src import puzzle_io  # noqa: E402
+from src import validator  # noqa: E402
 from src import solver  # noqa: E402
 
 
@@ -34,7 +36,7 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
 
 def test_save_puzzle(tmp_path: Path) -> None:
     puzzle = generator.generate_puzzle(4, 4, difficulty="easy", seed=1)
-    path = generator.save_puzzle(puzzle, directory=tmp_path)
+    path = puzzle_io.save_puzzle(puzzle, directory=tmp_path)
     assert path.exists()
     assert path.name == "map_gridtrace.json"
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -45,7 +47,7 @@ def test_save_puzzle(tmp_path: Path) -> None:
 def test_validate_puzzle() -> None:
     puzzle = generator.generate_puzzle(4, 4, seed=0)
     # エラーが出ないことを確認
-    generator.validate_puzzle(puzzle)
+    validator.validate_puzzle(puzzle)
 
 
 def test_validate_puzzle_fail() -> None:
@@ -63,7 +65,7 @@ def test_validate_puzzle_fail() -> None:
     if not broken:
         puzzle["solutionEdges"]["vertical"][0][0] = False
     with pytest.raises(ValueError):
-        generator.validate_puzzle(puzzle)
+        validator.validate_puzzle(puzzle)
 
 
 def test_zero_adjacent_fail() -> None:
@@ -72,13 +74,13 @@ def test_zero_adjacent_fail() -> None:
     puzzle["cluesFull"][0][0] = 0
     puzzle["cluesFull"][1][0] = 0
     with pytest.raises(ValueError):
-        generator.validate_puzzle(puzzle)
+        validator.validate_puzzle(puzzle)
 
 
 def test_generate_multiple_and_save(tmp_path: Path) -> None:
     puzzles = generator.generate_multiple_puzzles(3, 3, count_each=1, seed=5)
     assert len(puzzles) == 4
-    path = generator.save_puzzles(puzzles, directory=tmp_path)
+    path = puzzle_io.save_puzzles(puzzles, directory=tmp_path)
     assert path.exists()
     data = json.loads(path.read_text(encoding="utf-8"))
     assert len(data) == 4
@@ -102,7 +104,7 @@ def test_generate_puzzle_symmetry() -> None:
 
 def test_generate_puzzle_parallel() -> None:
     puzzle = generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
-    generator.validate_puzzle(puzzle)
+    validator.validate_puzzle(puzzle)
 
 
 def test_count_solutions_unique() -> None:

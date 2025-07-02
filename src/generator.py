@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 import time
-from pathlib import Path
-import json
 import os
 import random
 import concurrent.futures
@@ -18,6 +16,15 @@ try:
 except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
     # スクリプトとして直接実行されたときは同じディレクトリからインポートする
     from solver import PuzzleSize, calculate_clues, count_solutions
+
+from .loop_builder import (
+    _create_empty_edges,
+    _generate_random_loop,
+    _count_edges,
+    _calculate_curve_ratio,
+)
+from .puzzle_io import save_puzzle
+from .validator import validate_puzzle
 
 
 logging.basicConfig(
@@ -31,164 +38,6 @@ Puzzle = Dict[str, Any]
 
 # JSON スキーマのバージョン
 SCHEMA_VERSION = "2.0"
-
-
-def _create_empty_edges(size: PuzzleSize) -> Dict[str, List[List[bool]]]:
-    """solutionEdges フィールド用の空の二次元配列を作成する"""
-    horizontal = [[False for _ in range(size.cols)] for _ in range(size.rows + 1)]
-    vertical = [[False for _ in range(size.cols + 1)] for _ in range(size.rows)]
-    return {"horizontal": horizontal, "vertical": vertical}
-
-
-def _generate_random_loop(edges: Dict[str, List[List[bool]]], size: PuzzleSize) -> None:
-    """外周だけではないランダムなループを生成する"""
-
-    # 頂点ごとの接続数を管理する配列
-    degrees = [[0 for _ in range(size.cols + 1)] for _ in range(size.rows + 1)]
-
-    def edge_exists(a: tuple[int, int], b: tuple[int, int]) -> bool:
-        """2点間の辺がすでに存在するか判定"""
-        if a[0] == b[0]:
-            r = a[0]
-            c = min(a[1], b[1])
-            return edges["horizontal"][r][c]
-        else:
-            c = a[1]
-            r = min(a[0], b[0])
-            return edges["vertical"][r][c]
-
-    def add_edge(a: tuple[int, int], b: tuple[int, int]) -> None:
-        """2点を結ぶ辺を追加する"""
-        if a[0] == b[0]:
-            r = a[0]
-            c = min(a[1], b[1])
-            edges["horizontal"][r][c] = True
-        else:
-            c = a[1]
-            r = min(a[0], b[0])
-            edges["vertical"][r][c] = True
-        degrees[a[0]][a[1]] += 1
-        degrees[b[0]][b[1]] += 1
-
-    def remove_edge(a: tuple[int, int], b: tuple[int, int]) -> None:
-        """2点を結ぶ辺を削除する"""
-        if a[0] == b[0]:
-            r = a[0]
-            c = min(a[1], b[1])
-            edges["horizontal"][r][c] = False
-        else:
-            c = a[1]
-            r = min(a[0], b[0])
-            edges["vertical"][r][c] = False
-        degrees[a[0]][a[1]] -= 1
-        degrees[b[0]][b[1]] -= 1
-
-    # 目標ループ長はハード制約 H-7 に従い盤面周長の 2 倍以上とする
-    # 盤面周長とは rows + cols を 2 倍した数で、外周を一周する長さを指す
-    min_len = max(2 * (size.rows + size.cols), 4)
-
-    # バックトラックでランダムなループを構築する
-    start = (random.randint(0, size.rows), random.randint(0, size.cols))
-    path: list[tuple[int, int]] = [start]
-
-    def dfs(current: tuple[int, int]) -> bool:
-        if len(path) >= min_len and current == start and len(path) > 1:
-            return True
-
-        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-        random.shuffle(directions)
-        for dr, dc in directions:
-            nr, nc = current[0] + dr, current[1] + dc
-            if not (0 <= nr <= size.rows and 0 <= nc <= size.cols):
-                continue
-            nxt = (nr, nc)
-            if degrees[nr][nc] >= 2 or degrees[current[0]][current[1]] >= 2:
-                continue
-            if edge_exists(current, nxt):
-                continue
-            # スタート地点に戻る場合は最小長さを満たすか確認
-            if nxt == start and len(path) + 1 < min_len:
-                continue
-
-            add_edge(current, nxt)
-            path.append(nxt)
-            if dfs(nxt):
-                return True
-            # 戻る処理
-            path.pop()
-            remove_edge(current, nxt)
-        return False
-
-    if not dfs(start):
-        # 失敗したら外周ループを生成してお茶を濁す
-        for c in range(size.cols):
-            edges["horizontal"][0][c] = True
-            edges["horizontal"][size.rows][c] = True
-        for r in range(size.rows):
-            edges["vertical"][r][0] = True
-            edges["vertical"][r][size.cols] = True
-
-
-def _apply_rotational_symmetry(
-    edges: Dict[str, List[List[bool]]], size: PuzzleSize
-) -> None:
-    """180 度回転対称になるよう辺情報を補正する関数"""
-
-    # 水平線を対称位置へコピーする
-    horizontal = edges["horizontal"]
-    for r in range(size.rows + 1):
-        for c in range(size.cols):
-            sr = size.rows - r
-            sc = size.cols - c - 1
-            val = horizontal[r][c] or horizontal[sr][sc]
-            horizontal[r][c] = val
-            horizontal[sr][sc] = val
-
-    # 垂直線も同様に処理する
-    vertical = edges["vertical"]
-    for r in range(size.rows):
-        for c in range(size.cols + 1):
-            sr = size.rows - r - 1
-            sc = size.cols - c
-            val = vertical[r][c] or vertical[sr][sc]
-            vertical[r][c] = val
-            vertical[sr][sc] = val
-
-
-def _count_edges(edges: Dict[str, List[List[bool]]]) -> int:
-    """ループに含まれる辺の総数を数える"""
-
-    # True の数をすべて合計することで長さを求める
-    return sum(sum(row) for row in edges["horizontal"]) + sum(
-        sum(row) for row in edges["vertical"]
-    )
-
-
-def _calculate_curve_ratio(
-    edges: Dict[str, List[List[bool]]], size: PuzzleSize
-) -> float:
-    """ループ中の曲がり角割合を計算する関数"""
-
-    curve_count = 0
-    for r in range(size.rows + 1):
-        for c in range(size.cols + 1):
-            connections = []
-            if c < size.cols and edges["horizontal"][r][c]:
-                connections.append("h")
-            if c > 0 and edges["horizontal"][r][c - 1]:
-                connections.append("h")
-            if r < size.rows and edges["vertical"][r][c]:
-                connections.append("v")
-            if r > 0 and edges["vertical"][r - 1][c]:
-                connections.append("v")
-            if (
-                len(connections) == 2
-                and connections.count("h") == 1
-                and connections.count("v") == 1
-            ):
-                curve_count += 1
-    total = _count_edges(edges)
-    return curve_count / total if total > 0 else 0.0
 
 
 ALLOWED_DIFFICULTIES = {"easy", "normal", "hard", "expert"}
@@ -462,24 +311,6 @@ def generate_puzzle(
     raise ValueError("盤面生成に失敗しました")
 
 
-def save_puzzle(puzzle: Puzzle, directory: str | Path = "data") -> Path:
-    """パズルを JSON 形式で保存する
-
-    :param puzzle: generate_puzzle の戻り値
-    :param directory: 保存先ディレクトリ
-    :return: 保存したファイルのパス
-    """
-    path = Path(directory)
-    path.mkdir(parents=True, exist_ok=True)
-    # 出力ファイル名は常に map_gridtrace.json とする
-    # 複数生成する場合はディレクトリを変えるなどで調整する想定
-    file_path = path / "map_gridtrace.json"
-    with file_path.open("w", encoding="utf-8") as fp:
-        json.dump(puzzle, fp, ensure_ascii=False, indent=2)
-    logger.info("パズルを保存しました: %s", file_path)
-    return file_path
-
-
 def generate_puzzle_parallel(
     rows: int,
     cols: int,
@@ -490,19 +321,10 @@ def generate_puzzle_parallel(
     return_stats: bool = False,
     jobs: int | None = None,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
-    """複数プロセスで generate_puzzle を試行して最初の結果を返す
+    """複数プロセスで generate_puzzle を試行して最初の結果を返す"""
 
-    初期シードに ``seed`` を使い、プロセス番号でシードをずらして実行します。
-
-    :param rows: 盤面の行数
-    :param cols: 盤面の列数
-    :param difficulty: 難易度ラベル
-    :param seed: 乱数シード
-    :param symmetry: 回転対称を指定する場合は ``"rotational"``
-    :param return_stats: True なら生成統計も返す
-    :param jobs: 並列実行するプロセス数。``None`` の場合 CPU 数を利用
-    :return: 生成したパズル
-    """
+    # 初期シードに ``seed`` を使い、プロセス番号でシードをずらして実行する
+    # ``jobs`` が ``None`` の場合は CPU コア数を利用する
 
     if jobs is None:
         jobs = os.cpu_count() or 1
@@ -571,150 +393,6 @@ def generate_multiple_puzzles(
 
     logger.info("複数盤面生成終了: %.3f 秒", time.perf_counter() - start_time)
     return puzzles
-
-
-def save_puzzles(puzzles: List[Puzzle], directory: str | Path = "data") -> Path:
-    """複数のパズルをひとつの JSON ファイルに保存する"""
-
-    path = Path(directory)
-    path.mkdir(parents=True, exist_ok=True)
-    file_path = path / "map_gridtrace.json"
-    with file_path.open("w", encoding="utf-8") as fp:
-        json.dump(puzzles, fp, ensure_ascii=False, indent=2)
-    logger.info("複数パズルを保存しました: %s", file_path)
-    return file_path
-
-
-def validate_puzzle(puzzle: Puzzle) -> None:
-    """パズルデータの整合性を簡易チェックする関数
-
-    H-7 ループ長、H-8 0 の隣接禁止、H-9 曲率比率を含む
-    """
-
-    # size フィールドの検証
-    size_dict = puzzle.get("size")
-    if not isinstance(size_dict, dict):
-        raise ValueError("size フィールドが存在しません")
-    size = PuzzleSize(rows=size_dict["rows"], cols=size_dict["cols"])
-
-    edges = puzzle.get("solutionEdges")
-    if not isinstance(edges, dict):
-        raise ValueError("solutionEdges フィールドが存在しません")
-
-    horizontal = edges.get("horizontal")
-    vertical = edges.get("vertical")
-    if (
-        not isinstance(horizontal, list)
-        or not isinstance(vertical, list)
-        or len(horizontal) != size.rows + 1
-        or len(vertical) != size.rows
-    ):
-        raise ValueError("solutionEdges のサイズが盤面サイズと一致しません")
-
-    for row in horizontal:
-        if len(row) != size.cols:
-            raise ValueError("horizontal 配列の列数が不正です")
-    for row in vertical:
-        if len(row) != size.cols + 1:
-            raise ValueError("vertical 配列の列数が不正です")
-
-    # ループ条件の確認
-    edge_count = 0
-    degrees = [[0 for _ in range(size.cols + 1)] for _ in range(size.rows + 1)]
-
-    for r in range(size.rows + 1):
-        for c in range(size.cols):
-            if horizontal[r][c]:
-                edge_count += 1
-                degrees[r][c] += 1
-                degrees[r][c + 1] += 1
-    for r in range(size.rows):
-        for c in range(size.cols + 1):
-            if vertical[r][c]:
-                edge_count += 1
-                degrees[r][c] += 1
-                degrees[r + 1][c] += 1
-
-    start = None
-    for r in range(size.rows + 1):
-        for c in range(size.cols + 1):
-            d = degrees[r][c]
-            if d not in (0, 2):
-                raise ValueError("ループが分岐または交差しています")
-            if d == 2 and start is None:
-                start = (r, c)
-
-    if start is None:
-        raise ValueError("ループが存在しません")
-
-    # BFS でループの連結性を確認
-    visited_edges: set[tuple[tuple[int, int], tuple[int, int]]] = set()
-    queue = [start]
-    visited_vertices = {start}
-
-    def neighbors(r: int, c: int) -> list[tuple[int, int]]:
-        result = []
-        if c < size.cols and horizontal[r][c]:
-            result.append((r, c + 1))
-        if c > 0 and horizontal[r][c - 1]:
-            result.append((r, c - 1))
-        if r < size.rows and vertical[r][c]:
-            result.append((r + 1, c))
-        if r > 0 and vertical[r - 1][c]:
-            result.append((r - 1, c))
-        return result
-
-    while queue:
-        r, c = queue.pop(0)
-        for nr, nc in neighbors(r, c):
-            if (r, c) <= (nr, nc):
-                edge = ((r, c), (nr, nc))
-            else:
-                edge = ((nr, nc), (r, c))
-            if edge not in visited_edges:
-                visited_edges.add(edge)
-                if (nr, nc) not in visited_vertices:
-                    visited_vertices.add((nr, nc))
-                    queue.append((nr, nc))
-
-    if len(visited_edges) != edge_count:
-        raise ValueError("ループが複数存在する可能性があります")
-
-    # ハード制約 H-7: ループ長下限チェック
-    # 辺の数が 2 * (rows + cols) 未満なら盤面外周だけをなぞる短すぎるループとみなす
-    if edge_count < 2 * (size.rows + size.cols):
-        raise ValueError("ループ長がハード制約を満たしていません")
-
-    # ヒント数字の整合をチェック
-    clues_full = puzzle.get("cluesFull")
-    if not isinstance(clues_full, list):
-        raise ValueError("cluesFull フィールドが存在しません")
-    calculated = calculate_clues(edges, size)
-    if clues_full != calculated:
-        raise ValueError("cluesFull が solutionEdges と一致しません")
-
-    clues = puzzle.get("clues")
-    if not isinstance(clues, list):
-        raise ValueError("clues フィールドが存在しません")
-    for r in range(size.rows):
-        for c in range(size.cols):
-            val = clues[r][c]
-            if val is not None and val != clues_full[r][c]:
-                raise ValueError("clues が cluesFull と一致しません")
-
-    # ハード制約 H-8: 0 の隣接禁止をチェック
-    for r in range(size.rows):
-        for c in range(size.cols):
-            if clues_full[r][c] == 0:
-                if r + 1 < size.rows and clues_full[r + 1][c] == 0:
-                    raise ValueError("0 が縦に隣接しています")
-                if c + 1 < size.cols and clues_full[r][c + 1] == 0:
-                    raise ValueError("0 が横に隣接しています")
-
-    # ハード制約 H-9: 線カーブ比率下限チェック
-    curve_ratio = _calculate_curve_ratio(edges, size)
-    if curve_ratio < 0.15:
-        raise ValueError("線カーブ比率がハード制約を満たしていません")
 
 
 def puzzle_to_ascii(puzzle: Puzzle) -> str:
