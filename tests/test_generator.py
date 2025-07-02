@@ -99,3 +99,8 @@ def test_puzzle_to_ascii() -> None:
 def test_generate_puzzle_symmetry() -> None:
     puzzle = generator.generate_puzzle(4, 4, symmetry="rotational", seed=7)
     assert puzzle["symmetry"] == "rotational"
+
+
+def test_generate_puzzle_parallel() -> None:
+    puzzle = generator.generate_puzzle_parallel(3, 3, seed=8, jobs=2)
+    generator.validate_puzzle(puzzle)

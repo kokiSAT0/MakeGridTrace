@@ -8,7 +8,9 @@ import logging
 import time
 from pathlib import Path
 import json
+import os
 import random
+import concurrent.futures
 from typing import Any, Dict, List, Optional, cast
 
 
@@ -342,7 +344,10 @@ def _count_solutions(
                 else:
                     vertical[r][c] = True
             # 検証のために cluesFull を含むパズルオブジェクトを作成
-            clues_full = _calculate_clues({"horizontal": horizontal, "vertical": vertical}, size)
+            clues_full = _calculate_clues(
+                {"horizontal": horizontal, "vertical": vertical},
+                size,
+            )
             puzzle = {
                 "size": {"rows": size.rows, "cols": size.cols},
                 "solutionEdges": {"horizontal": horizontal, "vertical": vertical},
@@ -655,6 +660,61 @@ def save_puzzle(puzzle: Puzzle, directory: str | Path = "data") -> Path:
     return file_path
 
 
+def generate_puzzle_parallel(
+    rows: int,
+    cols: int,
+    *,
+    difficulty: str = "normal",
+    seed: int | None = None,
+    symmetry: Optional[str] = None,
+    return_stats: bool = False,
+    jobs: int | None = None,
+) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
+    """複数プロセスで generate_puzzle を試行して最初の結果を返す
+
+    初期シードに ``seed`` を使い、プロセス番号でシードをずらして実行します。
+
+    :param rows: 盤面の行数
+    :param cols: 盤面の列数
+    :param difficulty: 難易度ラベル
+    :param seed: 乱数シード
+    :param symmetry: 回転対称を指定する場合は ``"rotational"``
+    :param return_stats: True なら生成統計も返す
+    :param jobs: 並列実行するプロセス数。``None`` の場合 CPU 数を利用
+    :return: 生成したパズル
+    """
+
+    if jobs is None:
+        jobs = os.cpu_count() or 1
+
+    base_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as executor:
+        futures = [
+            executor.submit(
+                generate_puzzle,
+                rows,
+                cols,
+                difficulty=difficulty,
+                seed=base_seed + i,
+                symmetry=symmetry,
+                return_stats=return_stats,
+            )
+            for i in range(jobs)
+        ]
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                result = future.result()
+                for f in futures:
+                    f.cancel()
+                return result
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("並列生成失敗: %s", exc)
+
+    raise ValueError("並列生成に失敗しました")
+
+
 def generate_multiple_puzzles(
     rows: int, cols: int, count_each: int, *, seed: int | None = None
 ) -> List[Puzzle]:
@@ -890,15 +950,31 @@ if __name__ == "__main__":
         help="回転対称にしたい場合に指定",
     )
     parser.add_argument("--seed", type=int, default=None, help="乱数シード")
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="並列生成プロセス数 (1 なら通常実行)",
+    )
     args = parser.parse_args()
 
-    pzl_obj = generate_puzzle(
-        args.rows,
-        args.cols,
-        difficulty=args.difficulty,
-        seed=args.seed,
-        symmetry=args.symmetry,
-    )
+    if args.parallel > 1:
+        pzl_obj = generate_puzzle_parallel(
+            args.rows,
+            args.cols,
+            difficulty=args.difficulty,
+            seed=args.seed,
+            symmetry=args.symmetry,
+            jobs=args.parallel,
+        )
+    else:
+        pzl_obj = generate_puzzle(
+            args.rows,
+            args.cols,
+            difficulty=args.difficulty,
+            seed=args.seed,
+            symmetry=args.symmetry,
+        )
     pzl = cast(Puzzle, pzl_obj)
     path = save_puzzle(pzl)
     print(f"{path} を作成しました")
