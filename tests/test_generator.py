@@ -38,6 +38,7 @@ def test_generate_puzzle_structure(tmp_path: Path) -> None:
         "seed": 0,
         "symmetry": None,
         "theme": None,
+        "solverStepLimit": generator.MAX_SOLVER_STEPS,
     }
     assert puzzle["seedHash"] == hashlib.sha256(b"0").hexdigest()
     calc = solver.calculate_clues(puzzle["solutionEdges"], solver.PuzzleSize(4, 4))
@@ -247,6 +248,7 @@ def test_generation_params_and_seedhash() -> None:
         "seed": 42,
         "symmetry": "rotational",
         "theme": None,
+        "solverStepLimit": generator.MAX_SOLVER_STEPS,
     }
     assert puzzle["generationParams"] == expected
     assert puzzle["seedHash"] == hashlib.sha256(b"42").hexdigest()
@@ -271,3 +273,11 @@ def test_reduce_clues_zero_adjacent() -> None:
     assert not validator._has_zero_adjacent(
         [[v if v is not None else -1 for v in row] for row in reduced]
     )
+
+
+def test_generate_puzzle_step_limit() -> None:
+    puzzle = cast(
+        Dict[str, Any],
+        generator.generate_puzzle(3, 3, seed=5, solver_step_limit=1000),
+    )
+    assert puzzle["generationParams"]["solverStepLimit"] == 1000
