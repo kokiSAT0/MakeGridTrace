@@ -35,15 +35,15 @@ from .puzzle_io import save_puzzle
 from .validator import validate_puzzle, _has_zero_adjacent
 from .puzzle_builder import _build_puzzle_dict, _reduce_clues
 
+from .types import Puzzle
+
+
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-Puzzle = Dict[str, Any]
 
 # JSON スキーマのバージョン
 SCHEMA_VERSION = "2.0"
