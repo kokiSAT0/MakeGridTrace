@@ -708,7 +708,9 @@ def generate_multiple_puzzles(
 
 
 def puzzle_to_ascii(puzzle: Puzzle) -> str:
-    """パズル情報から ASCII 形式の盤面を生成して文字列で返す"""
+    """パズル情報を簡易的なテキスト盤面へ変換する"""
+
+    # ``+`` や ``|`` を使って盤面を描くシンプルな関数です。
 
     size_dict = puzzle["size"]
     size = PuzzleSize(rows=size_dict["rows"], cols=size_dict["cols"])
@@ -720,7 +722,7 @@ def puzzle_to_ascii(puzzle: Puzzle) -> str:
     lines: List[str] = []
     for r in range(size.rows * 2 + 1):
         if r % 2 == 0:
-            # 頂点行。水平線を描画する
+            # 偶数行は頂点を表す行。水平線を描画する
             row_idx = r // 2
             line = ""
             for c in range(size.cols):
@@ -729,7 +731,7 @@ def puzzle_to_ascii(puzzle: Puzzle) -> str:
             line += "+"
             lines.append(line)
         else:
-            # 数字行。縦線とヒント数字を描画する
+            # 奇数行は数字を配置する行。縦線とヒント数字を描画
             row_idx = r // 2
             line = ""
             for c in range(size.cols + 1):
