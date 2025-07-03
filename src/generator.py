@@ -140,6 +140,7 @@ def _create_loop(
     """ループを生成し長さと曲率を返す
 
     ``theme`` が ``"border"`` の場合は外周のみを使った単純なループ、
+    ``"pattern"`` の場合は小さなループパターンを敷き詰め、
     ``"maze"`` の場合はランダム生成から曲がりの多いものを選び、
     ``"spiral"`` の場合は曲率比率が最も高い候補を採用する。
     指定がない場合は完全ランダム生成となる。
@@ -342,7 +343,7 @@ def generate_puzzle(
     :param difficulty: 難易度ラベル
     :param seed: 乱数シード。再現したいときに指定する
     :param symmetry: 対称性を指定。"rotational" / "vertical" / "horizontal" のいずれか
-    :param theme: 盤面のテーマ。"border", "maze", "spiral" のいずれか
+    :param theme: 盤面のテーマ。"border", "pattern", "maze", "spiral" のいずれか
     :param timeout_s: 生成処理のタイムアウト秒。None なら無制限
     :param solver_step_limit: ソルバー探索の最大ステップ数
     :param return_stats: True なら生成統計も返す
@@ -766,7 +767,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--theme",
-        choices=["border", "maze", "spiral"],
+        choices=["border", "pattern", "maze", "spiral"],
         help="盤面のテーマを指定",
     )
     parser.add_argument("--seed", type=int, default=None, help="乱数シード")
