@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import Dict, List, TYPE_CHECKING
 import random
 
+try:
+    # 定義済みの小ループパターンを読み込む
+    from .pattern_builder import PATTERNS
+except Exception:  # pragma: no cover - スクリプト実行時のフォールバック
+    from pattern_builder import PATTERNS  # type: ignore
+
 if TYPE_CHECKING:
     from src.solver import PuzzleSize
 else:
@@ -208,6 +214,112 @@ def _calculate_curve_ratio(
     return curve_count / total if total > 0 else 0.0
 
 
+def _split_size(total: int) -> list[int] | None:
+    """3 と 4 の組み合わせで ``total`` を表す配列を返す"""
+    for a in range(total // 3 + 1):
+        for b in range(total // 4 + 1):
+            if 3 * a + 4 * b == total:
+                return [3] * a + [4] * b
+    return None
+
+
+def _copy_pattern(
+    dest: Dict[str, List[List[bool]]],
+    pattern: Dict[str, List[List[bool]]],
+    r_off: int,
+    c_off: int,
+) -> None:
+    """``dest`` の ``(r_off, c_off)`` 位置へ ``pattern`` を貼り付ける"""
+    for r, row in enumerate(pattern["horizontal"]):
+        for c, val in enumerate(row):
+            dest["horizontal"][r_off + r][c_off + c] = val
+    for r, row in enumerate(pattern["vertical"]):
+        for c, val in enumerate(row):
+            dest["vertical"][r_off + r][c_off + c] = val
+
+
+def _remove_edge_if_exists(
+    edges: Dict[str, List[List[bool]]], orientation: str, r: int, c: int
+) -> None:
+    """存在する場合のみ辺を削除する簡易ヘルパー"""
+    arr = edges[orientation]
+    if 0 <= r < len(arr) and 0 <= c < len(arr[0]):
+        arr[r][c] = False
+
+
+def _add_path(
+    edges: Dict[str, List[List[bool]]], start: tuple[int, int], end: tuple[int, int]
+) -> None:
+    """開始点から終了点へ直線経路を追加する"""
+    r, c = start
+    r2, c2 = end
+    # 横方向に移動
+    while c != c2:
+        if c < c2:
+            edges["horizontal"][r][c] = True
+            c += 1
+        else:
+            c -= 1
+            edges["horizontal"][r][c] = True
+    # 縦方向に移動
+    while r != r2:
+        if r < r2:
+            edges["vertical"][r][c] = True
+            r += 1
+        else:
+            r -= 1
+            edges["vertical"][r][c] = True
+
+
+def _connect_tiles(
+    edges: Dict[str, List[List[bool]]],
+    tile_a: tuple[int, int, int],
+    tile_b: tuple[int, int, int],
+) -> None:
+    """2 つのタイルをパスで接続する"""
+    size_a, ra, ca = tile_a
+    size_b, rb, cb = tile_b
+    start = (ra + size_a, ca + size_a)
+    end = (rb, cb)
+    # 各タイルの一部を開けておく
+    _remove_edge_if_exists(edges, "vertical", ra + size_a - 1, ca + size_a)
+    _remove_edge_if_exists(edges, "horizontal", rb, cb)
+    _add_path(edges, start, end)
+
+
+def combine_patterns(
+    size: PuzzleSize, rng: random.Random
+) -> Dict[str, List[List[bool]]]:
+    """登録済みパターンで盤面全体を埋めて一つのループを作る"""
+
+    rows_split = _split_size(size.rows)
+    cols_split = _split_size(size.cols)
+    if rows_split is None or cols_split is None:
+        # 分割できない場合は単純な外周ループを返す
+        rows_split = [size.rows]
+        cols_split = [size.cols]
+
+    edges = _create_empty_edges(size)
+    r_off = 0
+    for rs in rows_split:
+        c_off = 0
+        for cs in cols_split:
+            pattern = PATTERNS.get(rs, PATTERNS[3])
+            _copy_pattern(edges, pattern, r_off, c_off)
+            c_off += cs
+        r_off += rs
+
+    # 内部境界を消して外周だけ残す
+    for r in range(1, size.rows):
+        for c in range(size.cols):
+            edges["horizontal"][r][c] = False
+    for r in range(size.rows):
+        for c in range(1, size.cols):
+            edges["vertical"][r][c] = False
+
+    return edges
+
+
 __all__ = [
     "_create_empty_edges",
     "_generate_random_loop",
@@ -216,4 +328,5 @@ __all__ = [
     "_apply_horizontal_symmetry",
     "_count_edges",
     "_calculate_curve_ratio",
+    "combine_patterns",
 ]

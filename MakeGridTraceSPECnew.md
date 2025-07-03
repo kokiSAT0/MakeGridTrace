@@ -72,7 +72,8 @@ def generate_puzzle(
 - `seed`: 乱数シード。指定すると同じ盤面を再生成できます。
 - `return_stats`: `True` にすると生成過程の統計情報も返します。
 
-現行実装では `theme` に `"border"` を指定可能で、`timeout_s` も利用できます。
+現行実装では `theme` に `"border"` や `"maze"`, `"spiral"`, `"pattern"` を指定
+可能で、`timeout_s` も利用できます。
 
 ### 3.2 その他の関数
 
@@ -174,7 +175,8 @@ flowchart TD
 ## 9. 今後の開発方針
 
 1. **テーマ (`theme`) 拡充**
-   - 現在は `"border"` のみ実装済み。今後は複数パターンを追加する
+   - `"pattern"` テーマを追加し、3x3 や 4x4 のループを敷き詰めて大きな
+     ループを構成できるようになった
 2. **品質指標 (Quality Score) 改良**
    - 曲率比率やヒント分散度に加え、より多くの統計情報から算出する
 3. **solverStats 出力**

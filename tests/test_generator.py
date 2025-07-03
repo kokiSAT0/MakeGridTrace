@@ -106,6 +106,17 @@ def test_generate_puzzle_theme_spiral() -> None:
     assert puzzle["generationParams"]["theme"] == "spiral"
 
 
+@pytest.mark.slow
+def test_generate_puzzle_pattern() -> None:
+    """10x10 サイズで pattern テーマが使えるか確認"""
+    puzzle = cast(
+        Dict[str, Any],
+        generator.generate_puzzle(10, 10, difficulty="easy", theme="pattern", seed=21),
+    )
+    validator.validate_puzzle(puzzle)
+    assert puzzle["theme"] == "pattern"
+
+
 def test_validate_puzzle() -> None:
     puzzle = cast(Dict[str, Any], generator.generate_puzzle(4, 4, seed=0))
     # エラーが出ないことを確認
