@@ -217,6 +217,107 @@ def _create_loop(
     return edges, loop_length, curve_ratio
 
 
+def _generate_loop_with_symmetry(
+    size: PuzzleSize,
+    rng: random.Random,
+    *,
+    symmetry: Optional[str],
+    theme: Optional[str],
+) -> tuple[Dict[str, List[List[bool]]], int, float]:
+    """対称性やテーマを考慮したループを生成する補助関数
+
+    ``_create_loop`` へ処理を委譲し、処理時間の計測とログ出力だけをここで行う。
+    """
+
+    start = time.perf_counter()
+    edges, loop_length, curve_ratio = _create_loop(
+        size, rng, symmetry=symmetry, theme=theme
+    )
+    logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - start)
+    return edges, loop_length, curve_ratio
+
+
+def _compute_clues_and_optimize(
+    edges: Dict[str, List[List[bool]]],
+    size: PuzzleSize,
+    rng: random.Random,
+    *,
+    difficulty: str,
+    solver_step_limit: int,
+    loop_length: int,
+    curve_ratio: float,
+) -> Optional[tuple[List[List[int | None]], List[List[int]], Dict[str, int]]]:
+    """ヒント計算と最適化をまとめて行う補助関数
+
+    解が一意にならない場合は ``None`` を返して再試行を促す。"""
+
+    start = time.perf_counter()
+    clues_all = calculate_clues(edges, size)
+    logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - start)
+
+    min_hint = max(1, int(size.rows * size.cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
+
+    clues = _reduce_clues(
+        clues_all, size, rng, min_hint=min_hint, step_limit=solver_step_limit
+    )
+
+    base_solutions, base_stats = cast(
+        tuple[int, Dict[str, int]],
+        count_solutions(
+            clues,
+            size,
+            limit=2,
+            return_stats=True,
+            step_limit=solver_step_limit,
+        ),
+    )
+    if base_solutions != 1:
+        logger.warning("解が一意でないため再試行します")
+        return None
+
+    clues = _optimize_clues(
+        clues,
+        clues_all,
+        size,
+        rng,
+        min_hint=min_hint,
+        loop_length=loop_length,
+        curve_ratio=curve_ratio,
+        solver_steps=base_stats["steps"],
+        iterations=5,
+        step_limit=min(solver_step_limit, 2000),
+    )
+
+    solutions, solver_stats = cast(
+        tuple[int, Dict[str, int]],
+        count_solutions(
+            clues,
+            size,
+            limit=2,
+            return_stats=True,
+            step_limit=solver_step_limit,
+        ),
+    )
+    if solutions != 1:
+        logger.warning("解が一意でないためヒントを再計算します")
+        clues = cast(List[List[int | None]], [row[:] for row in clues_all])
+        solutions, solver_stats = cast(
+            tuple[int, Dict[str, int]],
+            count_solutions(
+                clues,
+                size,
+                limit=2,
+                return_stats=True,
+                step_limit=solver_step_limit,
+            ),
+        )
+        if solutions != 1:
+            logger.warning("再試行します")
+            return None
+
+    return clues, clues_all, solver_stats
+
+
 def generate_puzzle(
     rows: int,
     cols: int,
@@ -283,79 +384,27 @@ def generate_puzzle(
                 best_puzzle["partial"] = True
                 return best_puzzle
             raise TimeoutError("generation timed out")
-        step_time = time.perf_counter()
-        edges, loop_length, curve_ratio = _create_loop(
+        edges, loop_length, curve_ratio = _generate_loop_with_symmetry(
             size, rng, symmetry=symmetry, theme=theme
         )
-        logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - step_time)
 
         if loop_length < 2 * (rows + cols):
             logger.warning("ループ長が不足したため再試行します")
             continue
 
-        step_time = time.perf_counter()
-        clues_all = calculate_clues(edges, size)
-        logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
-
-        min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
-        clues = _reduce_clues(
-            clues_all, size, rng, min_hint=min_hint, step_limit=solver_step_limit
-        )
-        # 現在のヒント配置でソルバーステップ数を計算
-        base_solutions, base_stats = cast(
-            tuple[int, Dict[str, int]],
-            count_solutions(
-                clues,
-                size,
-                limit=2,
-                return_stats=True,
-                step_limit=solver_step_limit,
-            ),
-        )
-        if base_solutions != 1:
-            logger.warning("解が一意でないため再試行します")
-            last_edges = edges
-            continue
-        clues = _optimize_clues(
-            clues,
-            clues_all,
+        result = _compute_clues_and_optimize(
+            edges,
             size,
             rng,
-            min_hint=min_hint,
+            difficulty=difficulty,
+            solver_step_limit=solver_step_limit,
             loop_length=loop_length,
             curve_ratio=curve_ratio,
-            solver_steps=base_stats["steps"],
-            iterations=5,
-            step_limit=min(solver_step_limit, 2000),
         )
-
-        solutions, solver_stats = cast(
-            tuple[int, Dict[str, int]],
-            count_solutions(
-                clues,
-                size,
-                limit=2,
-                return_stats=True,
-                step_limit=solver_step_limit,
-            ),
-        )
-        if solutions != 1:
-            logger.warning("解が一意でないためヒントを再計算します")
-            clues = cast(List[List[int | None]], [row[:] for row in clues_all])
-            solutions, solver_stats = cast(
-                tuple[int, Dict[str, int]],
-                count_solutions(
-                    clues,
-                    size,
-                    limit=2,
-                    return_stats=True,
-                    step_limit=solver_step_limit,
-                ),
-            )
-            if solutions != 1:
-                logger.warning("再試行します")
-                last_edges = edges
-                continue
+        if result is None:
+            last_edges = edges
+            continue
+        clues, clues_all, solver_stats = result
 
         puzzle = _build_puzzle_dict(
             size=size,
