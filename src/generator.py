@@ -7,6 +7,7 @@ import time
 import os
 import random
 import concurrent.futures
+import multiprocessing
 import hashlib
 from typing import Dict, List, Optional, cast, TYPE_CHECKING
 
@@ -494,6 +495,40 @@ def generate_puzzle(
     raise ValueError("盤面生成に失敗しました")
 
 
+def _safe_generate_parallel(
+    args: tuple,
+) -> Puzzle | tuple[Puzzle, Dict[str, int]] | Exception:
+    """``generate_puzzle`` をラップし例外を返すヘルパー関数"""
+
+    (
+        seed_offset,
+        rows,
+        cols,
+        difficulty,
+        base_seed,
+        symmetry,
+        theme,
+        solver_step_limit,
+        timeout_s,
+        return_stats,
+    ) = args
+
+    try:
+        return generate_puzzle(
+            rows,
+            cols,
+            difficulty=difficulty,
+            seed=base_seed + seed_offset,
+            symmetry=symmetry,
+            theme=theme,
+            timeout_s=timeout_s,
+            solver_step_limit=solver_step_limit,
+            return_stats=return_stats,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return exc
+
+
 def generate_puzzle_parallel(
     rows: int,
     cols: int,
@@ -528,42 +563,48 @@ def generate_puzzle_parallel(
 
     base_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
 
-    # ``with`` を使うと ``shutdown`` 時にすべてのワーカー終了を待ってしまう
-    # ため明示的に ``shutdown`` を呼び出して早期終了する
-    executor = concurrent.futures.ProcessPoolExecutor(
-        max_workers=jobs,
-        initializer=setup_logging,
-        initargs=(worker_log_level,),
-    )
-
-    futures = [
-        executor.submit(
-            generate_puzzle,
-            rows,
-            cols,
-            difficulty=difficulty,
-            seed=base_seed + i,
-            symmetry=symmetry,
-            theme=theme,
-            timeout_s=timeout_s,
-            solver_step_limit=solver_step_limit,
-            return_stats=return_stats,
+    # multiprocessing.Pool を使い、最初に成功した結果を得たら残りの
+    # ワーカーを即座に終了させる
+    ctx = multiprocessing.get_context("spawn")
+    with ctx.Pool(
+        processes=jobs, initializer=setup_logging, initargs=(worker_log_level,)
+    ) as pool:
+        iterator = pool.imap_unordered(
+            _safe_generate_parallel,
+            (
+                (
+                    i,
+                    rows,
+                    cols,
+                    difficulty,
+                    base_seed,
+                    symmetry,
+                    theme,
+                    solver_step_limit,
+                    timeout_s,
+                    return_stats,
+                )
+                for i in range(jobs)
+            ),
         )
-        for i in range(jobs)
-    ]
+        result = None
+        failures = 0
+        for res in iterator:
+            if isinstance(res, Exception):
+                logger.warning("並列生成失敗: %s", res)
+                failures += 1
+                if failures >= jobs:
+                    raise ValueError("並列生成に失敗しました")
+                continue
+            result = res
+            break
 
-    try:
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                result = future.result()
-                executor.shutdown(wait=False, cancel_futures=True)
-                return result
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("並列生成失敗: %s", exc)
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
+        # 1 件取得したら残りのプロセスを終了させる
+        pool.terminate()
 
-    raise ValueError("並列生成に失敗しました")
+    if result is None:
+        raise ValueError("並列生成に失敗しました")
+    return result
 
 
 def generate_multiple_puzzles(
