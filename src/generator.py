@@ -49,9 +49,9 @@ except ImportError:  # pragma: no cover - スクリプト実行時のフォー�
     from puzzle_io import save_puzzle
 
 try:
-    from .validator import validate_puzzle, _has_zero_adjacent
+    from .validator import validate_puzzle
 except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
-    from validator import validate_puzzle, _has_zero_adjacent
+    from validator import validate_puzzle
 
 try:
     from .constants import MAX_SOLVER_STEPS
@@ -297,12 +297,6 @@ def generate_puzzle(
         clues_all = calculate_clues(edges, size)
         logger.info("ヒント計算完了: %.3f 秒", time.perf_counter() - step_time)
 
-        # 外周だけの単純なループでは 0 が並びやすいので先にチェックする
-        if _has_zero_adjacent(clues_all):
-            logger.warning("0 が隣接するループのため再試行します")
-            last_edges = edges
-            continue
-
         min_hint = max(1, int(rows * cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
         clues = _reduce_clues(
             clues_all, size, rng, min_hint=min_hint, step_limit=solver_step_limit
@@ -334,13 +328,6 @@ def generate_puzzle(
             iterations=5,
             step_limit=min(solver_step_limit, 2000),
         )
-
-        # 0 が縦横に並んでいないか確認
-        if _has_zero_adjacent(
-            [[v if v is not None else -1 for v in row] for row in clues]
-        ):
-            logger.warning("0 が隣接したため再試行します")
-            continue
 
         solutions, solver_stats = cast(
             tuple[int, Dict[str, int]],
@@ -411,9 +398,6 @@ def generate_puzzle(
     if last_edges is not None:
         clues_all = calculate_clues(last_edges, size)
         curve_ratio_fb = _calculate_curve_ratio(last_edges, size)
-        # フォールバックでも 0 の隣接を許さない
-        if _has_zero_adjacent(clues_all):
-            raise ValueError("0 が隣接しています")
         _, solver_stats = cast(
             tuple[int, Dict[str, int]],
             count_solutions(

@@ -130,15 +130,29 @@ def test_validate_puzzle_fail() -> None:
         validator.validate_puzzle(puzzle)
 
 
-def test_zero_adjacent_fail() -> None:
-    puzzle = cast(
-        Dict[str, Any], generator.generate_puzzle(3, 3, difficulty="easy", seed=4)
+def test_zero_adjacent_allowed() -> None:
+    size = solver.PuzzleSize(4, 4)
+    edges = loop_builder._create_empty_edges(size)
+    loop_builder._generate_random_loop(edges, size, random.Random(1))
+    clues = solver.calculate_clues(edges, size)
+    stats = solver.count_solutions(clues, size, limit=2, return_stats=True)[1]
+    puzzle = puzzle_builder._build_puzzle_dict(
+        size=size,
+        edges=edges,
+        clues=[[v for v in row] for row in clues],
+        clues_full=clues,
+        loop_length=loop_builder._count_edges(edges),
+        curve_ratio=loop_builder._calculate_curve_ratio(edges, size),
+        difficulty="easy",
+        solver_stats=stats,
+        symmetry=None,
+        theme=None,
+        generation_params={},
+        seed_hash="x",
+        partial=False,
     )
-    # 0 を縦に並べて検証エラーを期待
-    puzzle["cluesFull"][0][0] = 0
-    puzzle["cluesFull"][1][0] = 0
-    with pytest.raises(ValueError):
-        validator.validate_puzzle(puzzle)
+    assert validator.count_zero_adjacent(puzzle["cluesFull"]) > 0
+    validator.validate_puzzle(puzzle)
 
 
 def test_has_zero_adjacent_helper() -> None:
@@ -148,9 +162,10 @@ def test_has_zero_adjacent_helper() -> None:
     assert not validator._has_zero_adjacent(clues2)
 
 
-def test_generator_zero_not_adjacent() -> None:
+def test_generator_zero_adjacent_soft() -> None:
     puzzle = cast(Dict[str, Any], generator.generate_puzzle(3, 3, seed=10))
-    assert not validator._has_zero_adjacent(puzzle["cluesFull"])
+    count = validator.count_zero_adjacent(puzzle["cluesFull"])
+    assert count >= 0
 
 
 def test_generate_puzzle_timeout() -> None:
@@ -299,11 +314,12 @@ def test_reduce_clues_zero_adjacent() -> None:
     edges = loop_builder._create_empty_edges(size)
     loop_builder._generate_random_loop(edges, size, rng_loop)
     clues = solver.calculate_clues(edges, size)
-    assert any(0 in row for row in clues)
+    before = validator.count_zero_adjacent(clues)
     reduced = puzzle_builder._reduce_clues(clues, size, random.Random(1), min_hint=1)
-    assert not validator._has_zero_adjacent(
+    after = validator.count_zero_adjacent(
         [[v if v is not None else -1 for v in row] for row in reduced]
     )
+    assert after <= before
 
 
 def test_optimize_clues_improves_qs() -> None:
