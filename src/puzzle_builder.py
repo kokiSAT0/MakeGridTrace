@@ -11,18 +11,18 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from src.solver import PuzzleSize, count_solutions
     from src.constants import MAX_SOLVER_STEPS, _evaluate_difficulty
-    from src import validator
+    from src.validator import count_zero_adjacent
 else:
     try:
         # パッケージとして実行された場合の相対インポート
         from .solver import PuzzleSize, count_solutions
         from .constants import MAX_SOLVER_STEPS, _evaluate_difficulty
-        from . import validator
+        from .validator import count_zero_adjacent
     except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
         # スクリプトとして直接実行されたときは同じディレクトリからインポートする
         from solver import PuzzleSize, count_solutions
         from constants import MAX_SOLVER_STEPS, _evaluate_difficulty
-        import validator
+        from validator import count_zero_adjacent
 
 Puzzle = Dict[str, Any]
 
@@ -105,6 +105,11 @@ def _calculate_quality_score(
         row_balance = col_balance = 0.0
     balance_score = max(0.0, (row_balance + col_balance) / 2)
 
+    zero_pairs = count_zero_adjacent(
+        [[v if v is not None else -1 for v in row] for row in clues]
+    )
+    zero_ratio = zero_pairs / cells if cells else 0.0
+
     score = 20 * math.log10(max(curve_ratio * 100, 0.01)) + 25 * entropy
     score += 15 * dispersion
     score += 10 * density_score
@@ -114,6 +119,7 @@ def _calculate_quality_score(
     max_len = 2 * (len(clues) + len(clues[0]))
     length_ratio = min(1.0, loop_length / max_len) if max_len else 0.0
     score += 20 * length_ratio
+    score -= 30 * zero_ratio
     return round(max(0.0, min(100.0, score)), 2)
 
 
@@ -127,8 +133,9 @@ def _reduce_clues(
 ) -> List[List[int | None]]:
     """ヒントをランダムに削減して一意性を保つ
 
-    生成途中で ``0`` が縦横に隣接してしまうとハード制約 H-8 を満たさなくなる。
-    そのため削除後に ``_has_zero_adjacent`` を確認し、違反する場合は削除を戻す。
+    以前は ``0`` が隣接するとエラーとしていたが、
+    現在は ``0`` の隣接は少ないほど望ましいという
+    ソフト制約として扱うためチェックを行わない。
 
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
     :param step_limit: ソルバーに渡すステップ上限
@@ -147,9 +154,6 @@ def _reduce_clues(
         if (
             hint_count < min_hint
             or count_solutions(result, size, limit=2, step_limit=step_limit) != 1
-            or validator._has_zero_adjacent(
-                [[v if v is not None else -1 for v in row] for row in result]
-            )
         ):
             result[r][c] = original
 
@@ -200,11 +204,6 @@ def _optimize_clues(
             if hint_count <= min_hint:
                 continue
             candidate[r][c] = None
-
-        if validator._has_zero_adjacent(
-            [[v if v is not None else -1 for v in row] for row in candidate]
-        ):
-            continue
 
         if count_solutions(candidate, size, limit=2, step_limit=step_limit) != 1:
             continue

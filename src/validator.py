@@ -38,6 +38,22 @@ def _has_zero_adjacent(clues: List[List[int]]) -> bool:
     return False
 
 
+def count_zero_adjacent(clues: List[List[int]]) -> int:
+    """0 が隣接しているペア数を数える簡易関数"""
+
+    count = 0
+    rows = len(clues)
+    cols = len(clues[0]) if rows > 0 else 0
+    for r in range(rows):
+        for c in range(cols):
+            if clues[r][c] == 0:
+                if r + 1 < rows and clues[r + 1][c] == 0:
+                    count += 1
+                if c + 1 < cols and clues[r][c + 1] == 0:
+                    count += 1
+    return count
+
+
 def validate_puzzle(puzzle: Puzzle) -> None:
     """盤面データが仕様を満たすか簡易チェックする"""
 
@@ -139,13 +155,9 @@ def validate_puzzle(puzzle: Puzzle) -> None:
             if val is not None and val != clues_full[r][c]:
                 raise ValueError("clues が cluesFull と一致しません")
 
-    if _has_zero_adjacent(clues_full):
-        # どこかで 0 が隣接している
-        raise ValueError("0 が隣接しています")
-
     curve_ratio = _calculate_curve_ratio(edges, size)
     if curve_ratio < 0.15:
         raise ValueError("線カーブ比率がハード制約を満たしていません")
 
 
-__all__ = ["validate_puzzle", "_has_zero_adjacent"]
+__all__ = ["validate_puzzle", "_has_zero_adjacent", "count_zero_adjacent"]
