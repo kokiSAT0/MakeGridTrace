@@ -54,6 +54,20 @@ def count_zero_adjacent(clues: List[List[int]]) -> int:
     return count
 
 
+def _has_zero_only_line(clues: List[List[int]]) -> bool:
+    """行または列がすべて 0 かどうかを判定するヘルパー関数"""
+
+    rows = len(clues)
+    cols = len(clues[0]) if rows > 0 else 0
+    for r in range(rows):
+        if all(clues[r][c] == 0 for c in range(cols)):
+            return True
+    for c in range(cols):
+        if all(clues[r][c] == 0 for r in range(rows)):
+            return True
+    return False
+
+
 def validate_puzzle(puzzle: Puzzle) -> None:
     """盤面データが仕様を満たすか簡易チェックする"""
 
@@ -159,5 +173,13 @@ def validate_puzzle(puzzle: Puzzle) -> None:
     if curve_ratio < 0.15:
         raise ValueError("線カーブ比率がハード制約を満たしていません")
 
+    if _has_zero_only_line(clues_full):
+        raise ValueError("行または列に 0 だけのものがあります")
 
-__all__ = ["validate_puzzle", "_has_zero_adjacent", "count_zero_adjacent"]
+
+__all__ = [
+    "validate_puzzle",
+    "_has_zero_adjacent",
+    "count_zero_adjacent",
+    "_has_zero_only_line",
+]

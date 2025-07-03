@@ -179,6 +179,39 @@ def test_generator_zero_adjacent_soft() -> None:
     assert count >= 0
 
 
+def test_validate_puzzle_zero_only_row_fail() -> None:
+    size = solver.PuzzleSize(3, 3)
+    edges = loop_builder._create_empty_edges(size)
+    # 下側中央のセルだけを囲む小さなループを作成
+    edges["horizontal"][2][1] = True
+    edges["horizontal"][2][2] = True
+    edges["horizontal"][3][1] = True
+    edges["horizontal"][3][2] = True
+    edges["vertical"][2][1] = True
+    edges["vertical"][2][2] = True
+
+    clues_full = solver.calculate_clues(edges, size)
+    assert clues_full[0] == [0, 0, 0]
+    stats = solver.count_solutions(clues_full, size, limit=2, return_stats=True)[1]
+    puzzle = puzzle_builder._build_puzzle_dict(
+        size=size,
+        edges=edges,
+        clues=[[v for v in row] for row in clues_full],
+        clues_full=clues_full,
+        loop_length=loop_builder._count_edges(edges),
+        curve_ratio=loop_builder._calculate_curve_ratio(edges, size),
+        difficulty="easy",
+        solver_stats=stats,
+        symmetry=None,
+        theme=None,
+        generation_params={},
+        seed_hash="x",
+        partial=False,
+    )
+    with pytest.raises(ValueError):
+        validator.validate_puzzle(puzzle)
+
+
 def test_generate_puzzle_timeout() -> None:
     with pytest.raises(TimeoutError):
         generator.generate_puzzle(3, 3, timeout_s=0.0)
