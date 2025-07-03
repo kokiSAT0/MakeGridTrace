@@ -508,7 +508,10 @@ def generate_puzzle_parallel(
     jobs: int | None = None,
     worker_log_level: int = logging.WARNING,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
-    """複数プロセスで ``generate_puzzle`` を試行して最初の結果を返す
+    """複数プロセスで ``generate_puzzle`` を試行し最初に成功した盤面を返す
+
+    並列生成の目的は時間短縮のため、1 つの盤面ができた時点で他の
+    ワーカーはキャンセルして処理を終える。
 
     :param theme: 盤面のテーマを指定する文字列
     :param solver_step_limit: ソルバー探索の最大ステップ数
@@ -525,35 +528,40 @@ def generate_puzzle_parallel(
 
     base_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
 
-    with concurrent.futures.ProcessPoolExecutor(
+    # ``with`` を使うと ``shutdown`` 時にすべてのワーカー終了を待ってしまう
+    # ため明示的に ``shutdown`` を呼び出して早期終了する
+    executor = concurrent.futures.ProcessPoolExecutor(
         max_workers=jobs,
         initializer=setup_logging,
         initargs=(worker_log_level,),
-    ) as executor:
-        futures = [
-            executor.submit(
-                generate_puzzle,
-                rows,
-                cols,
-                difficulty=difficulty,
-                seed=base_seed + i,
-                symmetry=symmetry,
-                theme=theme,
-                timeout_s=timeout_s,
-                solver_step_limit=solver_step_limit,
-                return_stats=return_stats,
-            )
-            for i in range(jobs)
-        ]
+    )
 
+    futures = [
+        executor.submit(
+            generate_puzzle,
+            rows,
+            cols,
+            difficulty=difficulty,
+            seed=base_seed + i,
+            symmetry=symmetry,
+            theme=theme,
+            timeout_s=timeout_s,
+            solver_step_limit=solver_step_limit,
+            return_stats=return_stats,
+        )
+        for i in range(jobs)
+    ]
+
+    try:
         for future in concurrent.futures.as_completed(futures):
             try:
                 result = future.result()
-                for f in futures:
-                    f.cancel()
+                executor.shutdown(wait=False, cancel_futures=True)
                 return result
             except Exception as exc:  # noqa: BLE001
                 logger.warning("並列生成失敗: %s", exc)
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
     raise ValueError("並列生成に失敗しました")
 
