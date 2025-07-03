@@ -111,20 +111,35 @@ RETRY_LIMIT = 20
 # MAX_SOLVER_STEPS と _evaluate_difficulty は constants モジュールへ移動した
 
 
+def _vertex_degree(
+    edges: Dict[str, List[List[bool]]], size: PuzzleSize, r: int, c: int
+) -> int:
+    """頂点の接続数を求める簡易ヘルパー
+
+    グリッド上の一点(r, c)に接続している線の数を数えます。2 ならループ、
+    0 なら線がない状態です。初心者向けに説明すると、これはその点から
+    何本の線が出ているかを数える処理です。"""
+
+    deg = 0
+    if c < size.cols and edges["horizontal"][r][c]:
+        deg += 1
+    if c > 0 and edges["horizontal"][r][c - 1]:
+        deg += 1
+    if r < size.rows and edges["vertical"][r][c]:
+        deg += 1
+    if r > 0 and edges["vertical"][r - 1][c]:
+        deg += 1
+    return deg
+
+
 def _validate_edges(edges: Dict[str, List[List[bool]]], size: PuzzleSize) -> bool:
     """辺情報が単一ループを構成するか確認"""
 
     for r in range(size.rows + 1):
         for c in range(size.cols + 1):
-            deg = 0
-            if c < size.cols and edges["horizontal"][r][c]:
-                deg += 1
-            if c > 0 and edges["horizontal"][r][c - 1]:
-                deg += 1
-            if r < size.rows and edges["vertical"][r][c]:
-                deg += 1
-            if r > 0 and edges["vertical"][r - 1][c]:
-                deg += 1
+            # 各頂点の接続本数を調べる
+            deg = _vertex_degree(edges, size, r, c)
+            # 0 または 2 以外なら分岐しているので NG
             if deg not in (0, 2):
                 return False
     return True
