@@ -27,6 +27,7 @@ try:
     from .loop_builder import (
         _create_empty_edges,
         _generate_random_loop,
+        combine_patterns,
         _count_edges,
         _calculate_curve_ratio,
         _apply_rotational_symmetry,
@@ -37,12 +38,13 @@ except ImportError:  # pragma: no cover - スクリプト実行時のフォー�
     from loop_builder import (
         _create_empty_edges,
         _generate_random_loop,
+        combine_patterns,
         _count_edges,
         _calculate_curve_ratio,
         _apply_rotational_symmetry,
         _apply_vertical_symmetry,
         _apply_horizontal_symmetry,
-    )
+    )  # type: ignore
 
 try:
     from .puzzle_io import save_puzzle
@@ -153,6 +155,8 @@ def _create_loop(
             for r in range(size.rows):
                 edges["vertical"][r][0] = True
                 edges["vertical"][r][size.cols] = True
+        elif theme == "pattern":
+            edges = combine_patterns(size, rng)
         elif theme == "maze":
             # ランダムループを複数回生成し、より長く曲がりの多いものを採用する
             best_edges = None
