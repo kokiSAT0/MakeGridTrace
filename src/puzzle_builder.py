@@ -70,7 +70,7 @@ def _calculate_hint_dispersion(clues: List[List[int | None]]) -> float:
     return filled / total if total else 0.0
 
 
-@njit
+@njit(cache=True)
 def _quality_core(
     clues_arr: np.ndarray, curve_ratio: float, solver_steps: int, loop_length: int
 ) -> float:
@@ -417,3 +417,13 @@ __all__ = [
     "_calculate_quality_score",
     "_calculate_hint_dispersion",
 ]
+
+
+def _warmup_numba() -> None:
+    """Numba 関数の初回コンパイルを行う"""
+
+    dummy = np.zeros((1, 1), dtype=np.int8)
+    _quality_core(dummy, 0.0, 0, 0)
+
+
+_warmup_numba()
