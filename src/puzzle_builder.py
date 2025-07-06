@@ -74,8 +74,12 @@ def _calculate_quality_score(
     """品質指標 (Quality Score) を計算する
 
     曲率比率に加え、ヒント密度や分散度など複数の統計から総合的な
-    スコアを算出する。``loop_length`` が短すぎる場合は減点し、
-    外周だけのループが高得点になるのを防ぐ。
+    スコアを算出する関数。Phase 2 ではウェイト調整を行い、
+    ``curve_ratio`` とエントロピーを最大 50 点まで、ソルバー手数を
+    10 点、行列バランスを 15 点として評価する。
+
+    ``loop_length`` が短すぎる場合は減点し、外周だけのループが
+    高得点になるのを防ぐ。
     """
 
     cells = len(clues) * len(clues[0]) if clues else 0
@@ -110,11 +114,18 @@ def _calculate_quality_score(
     )
     zero_ratio = zero_pairs / cells if cells else 0.0
 
-    score = 20 * math.log10(max(curve_ratio * 100, 0.01)) + 25 * entropy
+    # ウェイト調整に基づき各指標をスケール
+    # 曲率比率とヒントエントロピーは 0～50 点の範囲で評価する
+    curve_score = 50.0 * min(1.0, max(0.0, (curve_ratio - 0.15) / 0.3))
+    entropy_score = 50.0 * min(1.0, max(0.0, (entropy - 0.2) / 0.7))
+
+    score = curve_score + entropy_score
     score += 15 * dispersion
     score += 10 * density_score
-    score += 10 * balance_score
-    score += min(15.0, 10000.0 / (solver_steps + 1))
+    # 行・列バランスのウェイトを 15 点へ引き上げ
+    score += 15 * balance_score
+    # ソルバー手数は最大 10 点に抑える
+    score += min(10.0, 10000.0 / (solver_steps + 1))
     # 盤面サイズに対するループ長の割合を 0~1 で計算しスコアに加算
     max_len = 2 * (len(clues) + len(clues[0]))
     length_ratio = min(1.0, loop_length / max_len) if max_len else 0.0
