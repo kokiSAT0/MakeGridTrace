@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
-import os
 import random
 import concurrent.futures
-import multiprocessing
 import hashlib
 from typing import Dict, List, Optional, cast, TYPE_CHECKING
 
@@ -423,40 +421,6 @@ def generate_puzzle(
     raise ValueError("盤面生成に失敗しました")
 
 
-def _safe_generate_parallel(
-    args: tuple,
-) -> Puzzle | tuple[Puzzle, Dict[str, int]] | Exception:
-    """``generate_puzzle`` をラップし例外を返すヘルパー関数"""
-
-    (
-        seed_offset,
-        rows,
-        cols,
-        difficulty,
-        base_seed,
-        symmetry,
-        theme,
-        solver_step_limit,
-        timeout_s,
-        return_stats,
-    ) = args
-
-    try:
-        return generate_puzzle(
-            rows,
-            cols,
-            difficulty=difficulty,
-            seed=base_seed + seed_offset,
-            symmetry=symmetry,
-            theme=theme,
-            timeout_s=timeout_s,
-            solver_step_limit=solver_step_limit,
-            return_stats=return_stats,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return exc
-
-
 def generate_puzzle_parallel(
     rows: int,
     cols: int,
@@ -471,68 +435,24 @@ def generate_puzzle_parallel(
     jobs: int | None = None,
     worker_log_level: int = logging.WARNING,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
-    """複数プロセスで ``generate_puzzle`` を試行し最初に成功した盤面を返す
+    """``generator_parallel`` モジュール経由で並列生成を実行する"""
 
-    並列生成の目的は時間短縮のため、1 つの盤面ができた時点で他の
-    ワーカーはキャンセルして処理を終える。
+    # 実際の並列処理は ``generator_parallel`` に委譲する
+    from . import generator_parallel as gp
 
-    :param theme: 盤面のテーマを指定する文字列
-    :param solver_step_limit: ソルバー探索の最大ステップ数
-    :param timeout_s: 生成処理のタイムアウト秒数
-    :param worker_log_level: 並列処理のログレベル。デフォルトでは WARNING
-        以上のみ表示する
-    """
+    kwargs = {
+        "difficulty": difficulty,
+        "seed": seed,
+        "symmetry": symmetry,
+        "theme": theme,
+        "solver_step_limit": solver_step_limit,
+        "timeout_s": timeout_s,
+        "return_stats": return_stats,
+        "jobs": jobs,
+        "worker_log_level": worker_log_level,
+    }
 
-    # 初期シードに ``seed`` を使い、プロセス番号でシードをずらして実行する
-    # ``jobs`` が ``None`` の場合は CPU コア数を利用する
-
-    if jobs is None:
-        jobs = os.cpu_count() or 1
-
-    base_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
-
-    # multiprocessing.Pool を使い、最初に成功した結果を得たら残りの
-    # ワーカーを即座に終了させる
-    ctx = multiprocessing.get_context("spawn")
-    with ctx.Pool(
-        processes=jobs, initializer=setup_logging, initargs=(worker_log_level,)
-    ) as pool:
-        iterator = pool.imap_unordered(
-            _safe_generate_parallel,
-            (
-                (
-                    i,
-                    rows,
-                    cols,
-                    difficulty,
-                    base_seed,
-                    symmetry,
-                    theme,
-                    solver_step_limit,
-                    timeout_s,
-                    return_stats,
-                )
-                for i in range(jobs)
-            ),
-        )
-        result = None
-        failures = 0
-        for res in iterator:
-            if isinstance(res, Exception):
-                logger.warning("並列生成失敗: %s", res)
-                failures += 1
-                if failures >= jobs:
-                    raise ValueError("並列生成に失敗しました")
-                continue
-            result = res
-            break
-
-        # 1 件取得したら残りのプロセスを終了させる
-        pool.terminate()
-
-    if result is None:
-        raise ValueError("並列生成に失敗しました")
-    return result
+    return gp.generate_puzzle_parallel(rows, cols, **kwargs)
 
 
 def generate_multiple_puzzles(
