@@ -96,10 +96,15 @@ def _generate_random_loop(
     start_vertex = (rng.randint(0, size.rows), rng.randint(0, size.cols))
     route: list[tuple[int, int]] = [start_vertex]
 
-    # 事前に移動方向の順序を一度だけ乱数で決めておく
+    # 事前に各頂点ごとの移動方向の順序を乱数で決めておく
+    # 繰り返し ``random.shuffle`` を呼ばずに済むため高速化できる
     base_dirs = np.array([(0, 1), (1, 0), (0, -1), (-1, 0)], dtype=np.int8)
     np_rng = np.random.default_rng(rng.randint(0, 2**32))
-    dir_order = [tuple(v) for v in np_rng.permutation(base_dirs)]
+    vertex_dirs = {
+        (r, c): [tuple(v) for v in np_rng.permutation(base_dirs)]
+        for r in range(size.rows + 1)
+        for c in range(size.cols + 1)
+    }
 
     def _search_loop_dfs(current: tuple[int, int]) -> bool:
         """深さ優先で経路を探索し閉ループを探す"""
@@ -112,10 +117,8 @@ def _generate_random_loop(
         if len(route) > max_len:
             return False
 
-        # あらかじめ決めた順序に乱数でオフセットをかけて方向を試す
-        offset = rng.randint(0, len(dir_order) - 1)
-        directions = dir_order[offset:] + dir_order[:offset]
-        for dr, dc in directions:
+        # 現在位置に対応する方向順序をそのまま試す
+        for dr, dc in vertex_dirs[current]:
             nr, nc = current[0] + dr, current[1] + dc
             # 盤面外に出る候補は除外
             if not (0 <= nr <= size.rows and 0 <= nc <= size.cols):
@@ -185,9 +188,8 @@ def _generate_random_loop(
             if len(rpath) > max_len:
                 continue
 
-            offset = rng.randint(0, len(dir_order) - 1)
-            directions = dir_order[offset:] + dir_order[:offset]
-            for dr, dc in directions:
+            # BFS でも頂点ごとに決めた方向順序を使用
+            for dr, dc in vertex_dirs[current]:
                 nr, nc = current[0] + dr, current[1] + dc
                 if not (0 <= nr <= size.rows and 0 <= nc <= size.cols):
                     continue
