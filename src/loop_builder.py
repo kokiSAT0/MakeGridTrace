@@ -53,6 +53,10 @@ def _generate_random_loop(
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
     """
 
+    # 辺情報を NumPy 配列へ変換し、1/0 のビットボードとして扱う
+    h_edges = np.array(edges["horizontal"], dtype=np.uint8)
+    v_edges = np.array(edges["vertical"], dtype=np.uint8)
+
     # 各頂点に接続する辺の数を記録する二次元配列
     degrees = [[0 for _ in range(size.cols + 1)] for _ in range(size.rows + 1)]
 
@@ -61,22 +65,22 @@ def _generate_random_loop(
         if a[0] == b[0]:
             r = a[0]
             c = min(a[1], b[1])
-            return edges["horizontal"][r][c]
+            return h_edges[r, c] != 0
         else:
             c = a[1]
             r = min(a[0], b[0])
-            return edges["vertical"][r][c]
+            return v_edges[r, c] != 0
 
     def add_edge(a: tuple[int, int], b: tuple[int, int]) -> None:
         """2 点を結ぶ辺を追加し ``degrees`` を更新"""
         if a[0] == b[0]:
             r = a[0]
             c = min(a[1], b[1])
-            edges["horizontal"][r][c] = True
+            h_edges[r, c] = 1
         else:
             c = a[1]
             r = min(a[0], b[0])
-            edges["vertical"][r][c] = True
+            v_edges[r, c] = 1
         degrees[a[0]][a[1]] += 1
         degrees[b[0]][b[1]] += 1
 
@@ -85,11 +89,11 @@ def _generate_random_loop(
         if a[0] == b[0]:
             r = a[0]
             c = min(a[1], b[1])
-            edges["horizontal"][r][c] = False
+            h_edges[r, c] = 0
         else:
             c = a[1]
             r = min(a[0], b[0])
-            edges["vertical"][r][c] = False
+            v_edges[r, c] = 0
         degrees[a[0]][a[1]] -= 1
         degrees[b[0]][b[1]] -= 1
 
@@ -150,11 +154,15 @@ def _generate_random_loop(
     # search_loop が失敗した場合は単純な外周ループを作成
     if not search_loop(start_vertex):
         for c in range(size.cols):
-            edges["horizontal"][0][c] = True
-            edges["horizontal"][size.rows][c] = True
+            h_edges[0, c] = 1
+            h_edges[size.rows, c] = 1
         for r in range(size.rows):
-            edges["vertical"][r][0] = True
-            edges["vertical"][r][size.cols] = True
+            v_edges[r, 0] = 1
+            v_edges[r, size.cols] = 1
+
+    # 生成した NumPy 配列を Python のリストへ戻す
+    edges["horizontal"] = h_edges.astype(bool).tolist()
+    edges["vertical"] = v_edges.astype(bool).tolist()
 
 
 def _apply_rotational_symmetry(
