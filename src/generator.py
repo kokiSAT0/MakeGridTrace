@@ -56,10 +56,6 @@ try:
 except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
     from validator import validate_puzzle
 
-try:
-    from .constants import MAX_SOLVER_STEPS
-except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
-    from constants import MAX_SOLVER_STEPS
 
 try:
     from .puzzle_builder import _reduce_clues, _build_puzzle_dict, _optimize_clues
@@ -108,7 +104,7 @@ MIN_HINT_RATIO = {
 # 少し余裕を持たせる
 RETRY_LIMIT = 20
 
-# MAX_SOLVER_STEPS と _evaluate_difficulty は constants モジュールへ移動した
+# 難易度推定ロジックは constants モジュールへ分離している
 
 
 def _vertex_degree(
@@ -347,7 +343,7 @@ def generate_puzzle(
     seed: int | None = None,
     symmetry: Optional[str] = None,
     theme: Optional[str] = None,
-    solver_step_limit: int = MAX_SOLVER_STEPS,
+    solver_step_limit: int | None = None,
     timeout_s: float | None = None,
     return_stats: bool = False,
 ) -> Puzzle | tuple[Puzzle, Dict[str, int]]:
@@ -360,7 +356,8 @@ def generate_puzzle(
     :param symmetry: 対称性を指定。"rotational" / "vertical" / "horizontal" のいずれか
     :param theme: 盤面のテーマ。"border", "pattern", "maze", "spiral" のいずれか
     :param timeout_s: 生成処理のタイムアウト秒。None なら無制限
-    :param solver_step_limit: ソルバー探索の最大ステップ数
+    :param solver_step_limit: ソルバー探索の最大ステップ数。``None`` の場合は
+        ``rows * cols * 25`` を利用する
     :param return_stats: True なら生成統計も返す
     :return: 生成したパズル。``return_stats`` が True の場合は
         ``(Puzzle, dict)`` のタプルを返す
@@ -377,6 +374,10 @@ def generate_puzzle(
 
     # 乱数生成器を作成。シードを指定すると結果を再現できる
     rng = random.Random(seed)
+
+    if solver_step_limit is None:
+        # 盤面サイズに応じて上限を決める
+        solver_step_limit = rows * cols * 25
 
     generation_params = {
         "rows": rows,
@@ -557,7 +558,7 @@ def generate_puzzle_parallel(
     seed: int | None = None,
     symmetry: Optional[str] = None,
     theme: Optional[str] = None,
-    solver_step_limit: int = MAX_SOLVER_STEPS,
+    solver_step_limit: int | None = None,
     timeout_s: float | None = None,
     return_stats: bool = False,
     jobs: int | None = None,
@@ -803,8 +804,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--step-limit",
         type=int,
-        default=MAX_SOLVER_STEPS,
-        help="ソルバーの最大ステップ数",
+        default=None,
+        help="ソルバーの最大ステップ数 (未指定なら自動計算)",
     )
     args = parser.parse_args()
 

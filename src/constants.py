@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-# ソルバーが探索する最大ステップ数
-# ステップ数を増やすと解の探索精度が上がるが時間もかかる
-MAX_SOLVER_STEPS = 500000
+# 従来のデフォルト値を参考として残しておく
+# 現在は関数側で盤面サイズから計算するため、この値は直接は使わない
+DEFAULT_SOLVER_STEP_LIMIT = 500000
 
 
 def _evaluate_difficulty(steps: int, depth: int) -> str:
@@ -20,4 +20,4 @@ def _evaluate_difficulty(steps: int, depth: int) -> str:
     return "expert"
 
 
-__all__ = ["MAX_SOLVER_STEPS", "_evaluate_difficulty"]
+__all__ = ["DEFAULT_SOLVER_STEP_LIMIT", "_evaluate_difficulty"]
