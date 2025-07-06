@@ -304,37 +304,29 @@ def _apply_horizontal_symmetry(
 @njit(cache=True)
 def _count_edges_bitboard(h: np.ndarray, v: np.ndarray) -> int:
     """NumPy 配列化された辺の数を数える"""
-    count = 0
-    for r in range(h.shape[0]):
-        for c in range(h.shape[1]):
-            if h[r, c] != 0:
-                count += 1
-    for r in range(v.shape[0]):
-        for c in range(v.shape[1]):
-            if v[r, c] != 0:
-                count += 1
-    return count
+
+    # ``np.sum`` で配列全体の合計を求めると Python ループより高速になる
+    return int(h.sum() + v.sum())
 
 
 @njit(cache=True)
 def _curve_ratio_bitboard(h: np.ndarray, v: np.ndarray, rows: int, cols: int) -> float:
     """曲率比率を NumPy 配列で高速計算する"""
-    curve_count = 0
-    for r in range(rows + 1):
-        for c in range(cols + 1):
-            deg_h = 0
-            deg_v = 0
-            if c < cols and h[r, c] != 0:
-                deg_h += 1
-            if c > 0 and h[r, c - 1] != 0:
-                deg_h += 1
-            if r < rows and v[r, c] != 0:
-                deg_v += 1
-            if r > 0 and v[r - 1, c] != 0:
-                deg_v += 1
-            if deg_h + deg_v == 2 and deg_h == 1 and deg_v == 1:
-                curve_count += 1
-    total = _count_edges_bitboard(h, v)
+
+    # 各頂点に隣接する水平・垂直辺の本数をベクトル化して計算する
+    deg_h = np.zeros((rows + 1, cols + 1), dtype=np.uint8)
+    deg_v = np.zeros((rows + 1, cols + 1), dtype=np.uint8)
+
+    deg_h[:, :-1] += h
+    deg_h[:, 1:] += h
+    deg_v[:-1, :] += v
+    deg_v[1:, :] += v
+
+    total_deg = deg_h + deg_v
+    curves = (total_deg == 2) & (deg_h == 1) & (deg_v == 1)
+    curve_count = int(np.sum(curves))
+
+    total = int(h.sum() + v.sum())
     return curve_count / total if total > 0 else 0.0
 
 
