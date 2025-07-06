@@ -71,13 +71,28 @@ python -m src.generator 4 4 --difficulty normal
   ループパターンを敷き詰めた形状になります。
 - `--seed` : 乱数シード。再現したいときに数値を指定します。
 - `--timeout` : 生成処理のタイムアウト秒数。指定しない場合は無制限。
-- `--parallel` : 並列生成プロセス数。複数指定すると複数プロセスで同時に生成を試行
-  します。一つの盤面が完成した時点で残りのワーカーは自動的にキャンセルされ、
-  待ち時間を最小限に抑えます。並列時はワーカープロセスのログレベルを WARNING
-  に固定し、重要なメッセージだけを表示します。
+- `--parallel` : ワーカー数を指定します。Phase 2.5 以降は 1 回の生成につき
+  1 プロセスだけを利用する形式に変わりました。連続して複数回生成する場合に
+  プールを使い回すことで初期化コストを抑えられます。単発実行では
+  `--parallel 1` とほぼ同じ速度です。
 - `--profile` : `cProfile` で計測し結果を `profile.prof` に保存します。`snakeviz profile.prof` で
   グラフィカルに確認できます。
 - `--jobs` : `bulk_generator.py` 用の並列生成プロセス数。値を増やすと早く生成できます。
+
+### 繰り返し生成を高速化する
+
+Phase 2.5 から `generate_puzzle_parallel` は軽量なプロセスプールを使う実装に変更されました。
+Python から複数回呼び出す場合は次のようにプールを使い回すと効率的です。
+
+```python
+from src import generator_parallel
+
+for _ in range(10):
+    puzzle = generator_parallel.generate_puzzle_parallel(6, 6, jobs=4)
+    # ここで puzzle を利用する
+generator_parallel.close_pool()
+```
+プールを閉じるとワーカープロセスが終了します。
 
 ### 複数の難易度をまとめて生成する
 
