@@ -123,6 +123,37 @@ def _calculate_quality_score(
     return round(max(0.0, min(100.0, score)), 2)
 
 
+def _calculate_edge_coverage(
+    clues: List[List[int | None]], size: PuzzleSize
+) -> Dict[tuple[int, int], int]:
+    """各ヒントが単独でカバーする辺の数を計算するヘルパー
+
+    周囲のセルにヒントがない辺のみをカウントする。境界上の辺は
+    他セルと共有しないため、そのヒントの専有とみなす。
+    """
+
+    coverage: Dict[tuple[int, int], int] = {}
+    for r in range(size.rows):
+        for c in range(size.cols):
+            if clues[r][c] is None:
+                continue
+            count = 0
+            # 上辺
+            if r == 0 or clues[r - 1][c] is None:
+                count += 1
+            # 下辺
+            if r == size.rows - 1 or clues[r + 1][c] is None:
+                count += 1
+            # 左辺
+            if c == 0 or clues[r][c - 1] is None:
+                count += 1
+            # 右辺
+            if c == size.cols - 1 or clues[r][c + 1] is None:
+                count += 1
+            coverage[(r, c)] = count
+    return coverage
+
+
 def _reduce_clues(
     clues: List[List[int]],
     size: PuzzleSize,
@@ -131,11 +162,14 @@ def _reduce_clues(
     min_hint: int,
     step_limit: int | None = None,
 ) -> List[List[int | None]]:
-    """ヒントをランダムに削減して一意性を保つ
+    """ヒントを依存度の低い順に削減して一意性を保つ
 
-    以前は ``0`` が隣接するとエラーとしていたが、
-    現在は ``0`` の隣接は少ないほど望ましいという
-    ソフト制約として扱うためチェックを行わない。
+    従来はランダム順で削除していたが、事前に各ヒントの "edge coverage"
+    (そのヒントだけが参照する辺の数) を計算し、値が小さいものから
+    順に試すことでソルバの呼び出し回数を減らす。
+
+    以前は ``0`` が隣接するとエラーとしていたが、現在は ``0`` の隣接は
+    少ないほど望ましいというソフト制約として扱うためチェックしない。
 
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
     :param step_limit: ソルバーに渡すステップ上限
@@ -146,12 +180,18 @@ def _reduce_clues(
         step_limit = size.rows * size.cols * 25
 
     result: List[List[int | None]] = [[v for v in row] for row in clues]
-    cells = [(r, c) for r in range(size.rows) for c in range(size.cols)]
-    rng.shuffle(cells)
 
-    for r, c in cells:
-        if result[r][c] is None:
-            continue
+    # Edge coverage を計算し、値が小さいヒントから順に試す
+    coverage = _calculate_edge_coverage(result, size)
+    cells = [
+        (coverage.get((r, c), 0), r, c)
+        for r in range(size.rows)
+        for c in range(size.cols)
+        if result[r][c] is not None
+    ]
+    cells.sort()  # coverage が小さい順に並ぶ
+
+    for _, r, c in cells:
         original = result[r][c]
         result[r][c] = None
         hint_count = sum(1 for row in result for v in row if v is not None)
