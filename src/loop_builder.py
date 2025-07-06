@@ -102,6 +102,11 @@ def _generate_random_loop(
     start_vertex = (rng.randint(0, size.rows), rng.randint(0, size.cols))
     route: list[tuple[int, int]] = [start_vertex]
 
+    # 事前に移動方向の順序を一度だけ乱数で決めておく
+    base_dirs = np.array([(0, 1), (1, 0), (0, -1), (-1, 0)], dtype=np.int8)
+    np_rng = np.random.default_rng(rng.randint(0, 2**32))
+    dir_order = [tuple(v) for v in np_rng.permutation(base_dirs)]
+
     def search_loop(current: tuple[int, int]) -> bool:
         """再帰的に経路を伸ばし、閉ループを見つける"""
 
@@ -113,9 +118,9 @@ def _generate_random_loop(
         if len(route) > max_len:
             return False
 
-        # 次に移動する候補方向をランダムに並べ替える
-        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-        rng.shuffle(directions)
+        # あらかじめ決めた順序に乱数でオフセットをかけて方向を試す
+        offset = rng.randint(0, len(dir_order) - 1)
+        directions = dir_order[offset:] + dir_order[:offset]
         for dr, dc in directions:
             nr, nc = current[0] + dr, current[1] + dc
             # 盤面外に出る候補は除外
