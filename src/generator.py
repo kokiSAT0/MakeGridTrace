@@ -23,30 +23,12 @@ else:
         from solver import PuzzleSize, calculate_clues, count_solutions
 
 try:
-    # loop_builder モジュールから各種関数を読み込む
-    from .loop_builder import (
-        _create_empty_edges,
-        _generate_random_loop,
-        combine_patterns,
-        _count_edges,
-        _calculate_curve_ratio,
-        _apply_rotational_symmetry,
-        _apply_vertical_symmetry,
-        _apply_horizontal_symmetry,
-    )
-    from .loop_wilson import generate_loop, _validate_edges
+    # loop_builder から必要な関数のみ読み込む
+    from .loop_builder import _count_edges, _calculate_curve_ratio
+    from .loop_wilson import generate_loop
 except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
-    from loop_builder import (
-        _create_empty_edges,
-        _generate_random_loop,
-        combine_patterns,
-        _count_edges,
-        _calculate_curve_ratio,
-        _apply_rotational_symmetry,
-        _apply_vertical_symmetry,
-        _apply_horizontal_symmetry,
-    )  # type: ignore
-    from loop_wilson import generate_loop, _validate_edges
+    from loop_builder import _count_edges, _calculate_curve_ratio  # type: ignore
+    from loop_wilson import generate_loop
 
 try:
     from .puzzle_io import save_puzzle
@@ -114,8 +96,6 @@ RETRY_LIMIT = 20
 # 難易度推定ロジックは constants モジュールへ分離している
 
 
-
-
 def _generate_loop_with_symmetry(
     size: PuzzleSize,
     rng: random.Random,
@@ -134,6 +114,40 @@ def _generate_loop_with_symmetry(
     )
     logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - start)
     return edges, loop_length, curve_ratio
+
+
+def _inject_clue_patterns(
+    clues: List[List[int | None]], size: PuzzleSize, rng: random.Random
+) -> bool:
+    """222 や 33 のヒント列を確率的に挿入する簡易処理"""
+
+    injected = False
+    prob = 0.07  # 5% から 10% 程度の確率
+    # 横方向に 222 を入れる
+    if rng.random() < prob and size.cols >= 3:
+        r = rng.randrange(size.rows)
+        c = rng.randrange(size.cols - 2)
+        if all(clues[r][c + i] is None for i in range(3)):
+            clues[r][c] = clues[r][c + 1] = clues[r][c + 2] = 2
+            injected = True
+    # 横方向に 33 を入れる
+    if rng.random() < prob and size.cols >= 2:
+        r = rng.randrange(size.rows)
+        c = rng.randrange(size.cols - 1)
+        if clues[r][c] is None and clues[r][c + 1] is None:
+            clues[r][c] = clues[r][c + 1] = 3
+            injected = True
+
+    # 0 が隣接しないよう調整
+    if injected:
+        for r in range(size.rows):
+            for c in range(size.cols):
+                if clues[r][c] == 0:
+                    if r + 1 < size.rows and clues[r + 1][c] == 0:
+                        clues[r + 1][c] = None
+                    if c + 1 < size.cols and clues[r][c + 1] == 0:
+                        clues[r][c + 1] = None
+    return injected
 
 
 def _compute_clues_and_optimize(
@@ -190,6 +204,12 @@ def _compute_clues_and_optimize(
         step_limit=min(solver_step_limit, 2000),
     )
 
+    before_inject = [row[:] for row in clues]
+    if _inject_clue_patterns(clues, size, rng):
+        # 注入後に解の一意性を確認する
+        if not sat_unique.is_unique(clues, size):
+            clues = before_inject
+
     solutions, solver_stats = cast(
         tuple[int, Dict[str, int]],
         count_solutions(
@@ -239,7 +259,8 @@ def generate_puzzle(
     :param difficulty: 難易度ラベル
     :param seed: 乱数シード。再現したいときに指定する
     :param symmetry: 対称性を指定。"rotational" / "vertical" / "horizontal" のいずれか
-    :param theme: 盤面のテーマ。"border", "pattern", "maze", "spiral" のいずれか
+    :param theme: 盤面のテーマ。"border", "pattern", "maze", "spiral", "figure8",
+        "labyrinth" のいずれか
     :param timeout_s: 生成処理のタイムアウト秒。None なら無制限
     :param solver_step_limit: ソルバー探索の最大ステップ数。``None`` の場合は
         ``rows * cols * 25`` を利用する
@@ -671,7 +692,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--theme",
-        choices=["border", "pattern", "maze", "spiral"],
+        choices=["border", "pattern", "maze", "spiral", "figure8", "labyrinth"],
         help="盤面のテーマを指定",
     )
     parser.add_argument("--seed", type=int, default=None, help="乱数シード")

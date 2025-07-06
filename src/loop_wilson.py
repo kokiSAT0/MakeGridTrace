@@ -22,7 +22,9 @@ from .loop_builder import (
 )
 
 
-def _vertex_degree(edges: Dict[str, List[List[bool]]], size: PuzzleSize, r: int, c: int) -> int:
+def _vertex_degree(
+    edges: Dict[str, List[List[bool]]], size: PuzzleSize, r: int, c: int
+) -> int:
     """頂点の接続数を求める小さなヘルパー"""
     deg = 0
     if c < size.cols and edges["horizontal"][r][c]:
@@ -100,6 +102,42 @@ def generate_loop(
                 if curve > best_curve:
                     best_edges = cand
                     best_curve = curve
+            if best_edges is not None:
+                edges = best_edges
+            else:
+                _generate_random_loop(edges, size, rng)
+        elif theme == "figure8":
+            # 回転対称のループを複数試し最も曲率が高いものを採用する
+            best_edges = None
+            best_curve = -1.0
+            for _ in range(10):
+                cand = _create_empty_edges(size)
+                _generate_random_loop(cand, size, rng)
+                if not _validate_edges(cand, size):
+                    continue
+                _apply_rotational_symmetry(cand, size)
+                curve = _calculate_curve_ratio(cand, size)
+                if curve > best_curve:
+                    best_edges = cand
+                    best_curve = curve
+            if best_edges is not None:
+                edges = best_edges
+            else:
+                _generate_random_loop(edges, size, rng)
+                _apply_rotational_symmetry(edges, size)
+        elif theme == "labyrinth":
+            # できるだけ長いループを選び迷路風にする
+            best_edges = None
+            best_len = -1
+            for _ in range(10):
+                cand = _create_empty_edges(size)
+                _generate_random_loop(cand, size, rng)
+                if not _validate_edges(cand, size):
+                    continue
+                length = _count_edges(cand)
+                if length > best_len:
+                    best_edges = cand
+                    best_len = length
             if best_edges is not None:
                 edges = best_edges
             else:
