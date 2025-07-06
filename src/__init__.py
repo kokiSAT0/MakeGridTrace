@@ -11,6 +11,7 @@ __all__ = [
     "save_puzzles",
     "puzzle_to_ascii",
     "build_quality_histogram",
+    "generate_loop",
 ]
 
 
@@ -19,6 +20,10 @@ def __getattr__(name: str) -> Any:
 
     if name in {"generate_puzzle", "generate_multiple_puzzles", "puzzle_to_ascii"}:
         module = import_module(".generator", __name__)
+        return getattr(module, name)
+
+    if name == "generate_loop":
+        module = import_module(".loop_wilson", __name__)
         return getattr(module, name)
 
     if name in {"save_puzzle", "save_puzzles"}:
