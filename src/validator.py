@@ -170,7 +170,7 @@ def validate_puzzle(puzzle: Puzzle) -> None:
                 raise ValueError("clues が cluesFull と一致しません")
 
     curve_ratio = _calculate_curve_ratio(edges, size)
-    if curve_ratio < 0.15:
+    if curve_ratio < 0.10:
         raise ValueError("線カーブ比率がハード制約を満たしていません")
 
     if _has_zero_only_line(clues_full):

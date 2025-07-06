@@ -7,6 +7,10 @@ import multiprocessing as mp
 from typing import Any, Dict, Optional
 
 from .generator import generate_puzzle, setup_logging
+from .loop_builder import _calculate_curve_ratio, _count_edges
+from .puzzle_builder import _build_puzzle_dict
+from .solver import PuzzleSize, calculate_clues, count_solutions
+import hashlib
 
 # forkserver を使うことで不要なファイルディスクリプタを継承せず、
 # プロセス数が多い場合でも安定して動作する
@@ -16,6 +20,65 @@ CTX = mp.get_context("forkserver")
 _pool: Optional[mp.pool.Pool] = None
 
 
+def _assemble_puzzle(
+    rows: int, cols: int, kwargs: Dict[str, Any], data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """ワーカーから受け取った最小情報からパズル辞書を再構成する"""
+
+    size = PuzzleSize(rows=rows, cols=cols)
+    edges = data["solutionEdges"]
+    clues = data["clues"]
+
+    # cluesFull は solutionEdges から計算し直す
+    clues_full = calculate_clues(edges, size)
+
+    step_limit = kwargs.get("solver_step_limit")
+    if step_limit is None:
+        step_limit = rows * cols * 25
+
+    # ソルバー統計を計算する
+    _, stats = count_solutions(
+        clues_full, size, limit=2, step_limit=step_limit, return_stats=True
+    )
+
+    loop_length = _count_edges(edges)
+    curve_ratio = _calculate_curve_ratio(edges, size)
+
+    generation_params = {
+        "rows": rows,
+        "cols": cols,
+        "difficulty": kwargs.get("difficulty", "normal"),
+        "seed": kwargs.get("seed"),
+        "symmetry": kwargs.get("symmetry"),
+        "theme": kwargs.get("theme"),
+        "solverStepLimit": step_limit,
+    }
+
+    seed_hash = hashlib.sha256(str(kwargs.get("seed")).encode("utf-8")).hexdigest()
+
+    puzzle = _build_puzzle_dict(
+        size=size,
+        edges=edges,
+        clues=clues,
+        clues_full=clues_full,
+        loop_length=loop_length,
+        curve_ratio=curve_ratio,
+        difficulty=generation_params["difficulty"],
+        solver_stats=stats,
+        symmetry=generation_params["symmetry"],
+        theme=generation_params["theme"],
+        generation_params=generation_params,
+        seed_hash=seed_hash,
+        partial=data.get("partial", False),
+        reason=data.get("reason"),
+    )
+
+    # Quality Score はワーカー計算値を利用
+    puzzle["qualityScore"] = data["qscore"]
+
+    return puzzle
+
+
 def _worker(args: tuple[int, int, Dict[str, Any]]) -> Dict[str, Any]:
     """ワーカー側でパズル生成を実行する関数
 
@@ -23,8 +86,16 @@ def _worker(args: tuple[int, int, Dict[str, Any]]) -> Dict[str, Any]:
     """
     rows, cols, kwargs = args
     try:
-        data = generate_puzzle(rows, cols, **kwargs)
-        return {"ok": True, "data": data}
+        puzzle = generate_puzzle(rows, cols, **kwargs)
+        # 軽量化のため必要最小限の情報だけを返す
+        trimmed = {
+            "clues": puzzle["clues"],
+            "solutionEdges": puzzle["solutionEdges"],
+            "qscore": puzzle["qualityScore"],
+            "partial": puzzle.get("partial", False),
+            "reason": puzzle.get("reason"),
+        }
+        return {"ok": True, "data": trimmed}
     except Exception as exc:  # noqa: BLE001
         # 例外内容を文字列化して親に返す
         return {"ok": False, "err": str(exc)}
@@ -67,5 +138,5 @@ def generate_puzzle_parallel(rows: int, cols: int, **kwargs: Any) -> Any:
         return {"partial": True, "reason": "timeout"}
 
     if res.get("ok"):
-        return res["data"]
+        return _assemble_puzzle(rows, cols, kwargs, res["data"])
     raise RuntimeError("worker failed: " + str(res.get("err")))
