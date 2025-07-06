@@ -11,6 +11,11 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 import numpy as np
 from numba import njit
 
+try:
+    from . import sat_unique
+except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+    import sat_unique
+
 if TYPE_CHECKING:
     from src.solver import PuzzleSize, count_solutions
     from src.constants import _evaluate_difficulty
@@ -266,10 +271,17 @@ def _reduce_clues(
         original = result[r][c]
         result[r][c] = None
         hint_count = sum(1 for row in result for v in row if v is not None)
-        if (
-            hint_count < min_hint
-            or count_solutions(result, size, limit=2, step_limit=step_limit) != 1
-        ):
+        if hint_count < min_hint:
+            result[r][c] = original
+            continue
+
+        # SAT ソルバーで一意解かどうか簡易チェックする
+        if not sat_unique.is_unique(result, size):
+            result[r][c] = original
+            continue
+
+        # 一意解が確認できたら探索ソルバーでも検証する
+        if count_solutions(result, size, limit=2, step_limit=step_limit) != 1:
             result[r][c] = original
 
     return result
