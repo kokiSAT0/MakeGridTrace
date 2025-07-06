@@ -20,6 +20,19 @@ CTX = mp.get_context("forkserver")
 _pool: Optional[mp.pool.Pool] = None
 
 
+def _pool_initializer(log_level: int) -> None:
+    """ワーカープロセス起動時の初期化処理"""
+
+    # ログ設定を各プロセスで行う
+    setup_logging(log_level)
+    # Numba コンパイルを事前に実行しておき実行時オーバーヘッドを抑える
+    try:
+        from .loop_builder import _warmup_numba
+    except Exception:  # pragma: no cover - フォールバック
+        from loop_builder import _warmup_numba
+    _warmup_numba()
+
+
 def _assemble_puzzle(
     rows: int, cols: int, kwargs: Dict[str, Any], data: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -110,7 +123,7 @@ def _ensure_pool(jobs: Optional[int], log_level: int) -> mp.pool.Pool:
         _pool = CTX.Pool(
             processes=proc,
             maxtasksperchild=20,
-            initializer=setup_logging,
+            initializer=_pool_initializer,
             initargs=(log_level,),
         )
     return _pool
