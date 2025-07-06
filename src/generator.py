@@ -288,6 +288,7 @@ def generate_puzzle(
         if timeout_s is not None and time.perf_counter() - start_time > timeout_s:
             if best_puzzle is not None:
                 best_puzzle["partial"] = True
+                best_puzzle["reason"] = "timeout"
                 return best_puzzle
             raise TimeoutError("generation timed out")
         edges, loop_length, curve_ratio = _generate_loop_with_symmetry(
