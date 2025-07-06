@@ -1,100 +1,95 @@
-# Slitherlink Map Generator – Phase 1: Speed‑First Improvements
+# Slitherlink Map Generator – Phase 1 (Local Edition)
 
-> **Goal:** Within one sprint (≈ 1 week) cut the _average_ generation time by **≥ 10×** on 10×10–20×20 boards **while still returning puzzles that meet**:
+> **目標:** 10×10 盤面を **≤1 s**、20×20 を **≤15 s** で生成し、Quality Score ≥ 50・一意解を維持する。
 >
-> - Quality Score ≥ 50
-> - Unique solution
+> _CI やクラウドは使わず、ローカル開発だけで回せる手順に絞っています。_
 
-## 0. Baseline & Acceptance
+---
 
-| Metric                           | Current | Target     | Measured by                        |
-| -------------------------------- | ------- | ---------- | ---------------------------------- |
-| 10 × 10 board avg.               | *N* s   | **≤ 1 s**  | `bench/bench.py` (timeit 100 runs) |
-| 20 × 20 board avg.               | *M* s   | **≤ 15 s** | same as above                      |
-| Fail‑rate (timeout / non‑unique) | ≥ X %   | **≤ 5 %**  | CI summary                         |
-
-Add a `bench` folder with the script below and wire it into GitHub Actions so every PR gets a before/after report.
+## 0. ベースライン計測
 
 ```bash
 python -m timeit -s "from src.generator import generate_puzzle" \
-  "generate_puzzle(rows={rows}, cols={cols}, difficulty='normal')"
+  "generate_puzzle(rows=10, cols=10, difficulty='normal')"
 ```
 
----
-
-## 1. Task List (do in order)
-
-| ID                                                                     | Impact | Task                                                | Hints                                                              |
-| ---------------------------------------------------------------------- | ------ | --------------------------------------------------- | ------------------------------------------------------------------ |
-| **A1**                                                                 | ★★★★☆  | **Replace DFS loop generator with Wilson‑UST**      | • New `generator/loop_wilson.py` returns a loop in ≤ O(N M)        |
-| • Convert spanning tree to loop by connecting leaf to root             |        |                                                     |                                                                    |
-| • Preserve `symmetry` by post‑processing                               |        |                                                     |                                                                    |
-|                                                                        |        |                                                     |                                                                    |
-| **A2**                                                                 | ★★★★☆  | **Unique‑solution check via SAT (PySAT + Minisat)** | • Encode current board to CNF with “≤1 solution” constraint        |
-| • Run `Solver.solve_limited(expect_interrupt=True)`; stop on 2nd model |        |                                                     |                                                                    |
-| • Drop‐in replace `count_solutions` (keep API)                         |        |                                                     |                                                                    |
-|                                                                        |        |                                                     |                                                                    |
-| **A3**                                                                 | ★★★☆☆  | **Dynamic `solver_step_limit`**                     | • Set to `rows * cols * 25`                                        |
-| • Remove hard‑coded 500 000                                            |        |                                                     |                                                                    |
-|                                                                        |        |                                                     |                                                                    |
-| **A4**                                                                 | ★★★☆☆  | **Profiling & stats pipeline**                      | • Add `--profile` flag that writes `stats.prof`                    |
-| • Document use of `snakeviz`                                           |        |                                                     |                                                                    |
-|                                                                        |        |                                                     |                                                                    |
-| **A5**                                                                 | ★★☆☆☆  | **Timeout reason logging**                          | • When `timeout_s` exceeded, add `reason: "timeout"` field in JSON |
-|                                                                        |        |                                                     |                                                                    |
-
-> **Milestone complete when:** All benchmarks meet targets **and** CI green.
+- 10×10, 20×20 の平均生成時間をメモしておく（100 回測定）。
+- 以後、変更を入れるたびに同じコマンドで計測して比較。
 
 ---
 
-## 2. Implementation Notes
+## 1. 実装タスク（優先順）
 
-### A1 – Wilson Algorithm Sketch
+| ID     | 期待効果 | タスク                                | 実装メモ                                                                                        |
+| ------ | -------- | ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **A1** | ★★★★☆    | **Wilson‑UST でループ生成に置き換え** | 新モジュール `generator/loop_wilson.py` を追加し、`_generate_loop_with_symmetry` から呼び出す。 |
+| **A2** | ★★★★☆    | **PySAT (Minisat) で一意解チェック**  | 既存 `count_solutions` を `sat_unique.py` で差し替え。2 解目が出たら即打ち切る。                |
+| **A3** | ★★★☆☆    | **動的 `solver_step_limit`**          | `rows * cols * 25` に自動設定。固定 500 000 を廃止。                                            |
+| **A4** | ★★★☆☆    | **プロファイラ簡易導入**              | `--profile` フラグで `cProfile` を吐くオプション追加。`snakeviz` で閲覧。                       |
+| **A5** | ★★☆☆☆    | **タイムアウト理由の埋め込み**        | 途中返却 JSON に `reason: "timeout"` を追加してデバッグしやすく。                               |
 
-1. Choose random root vertex.
-2. For every unvisited vertex, perform loop‑erased random walk until hitting visited set.
-3. Union all edges → spanning tree.
-4. Convert to loop: find any leaf, walk to root, then add edge from leaf→root.
-5. For themes (`maze`, `spiral`…), perturb edge weights before walk to bias shape.
-
-### A2 – SAT Encoding Tips
-
-- Variables: one per edge ⇒ boolean "edge in loop".
-- Degree‑2 constraint per vertex: 0, 2 → encode via pairwise ⊕ clauses.
-- "At‑most‑1 additional solution" trick: after first model, add blocking clause and solve again with _conflict limit = 1 000_.
-
-### Quality Guard
-
-Keep the existing Quality Score calculation **unchanged** for Phase 1; we will revisit weighting in Phase 2.
+> **実装順序:** A1 → A2 → A3 → A4 → A5
 
 ---
 
-## 3. Deliverables
+## 2. Wilson Algorithm  メモ
 
-1. **PR #phase1‑speed** containing:
-
-   - New modules `loop_wilson.py`, `sat_unique.py`
-   - Updated `generator.py` integration
-   - Bench & CI workflow
-
-2. **Bench results** posted in PR description.
-3. **Short hindsight doc** (markdown) listing what actually moved the needle.
+1. ランダム頂点を root とし、未訪問頂点から _loop‑erased random walk_ で木を拡張。
+2. 完成した木で「葉 →root」の経路を取り、それと root を結んで 1 周ループに。
+3. `theme` で重み付けを変えられるよう、歩行時コスト関数を引数に取る。
+4. `symmetry` は生成後に `_apply_rotational_symmetry` 等で調整。
 
 ---
 
-## 4. Out‑of‑Scope (Phase 2+)
+## 3. SAT エンコード要点
 
-- NumPy/Numba bitboard refactor
-- Clue reduction heuristics rewrite
-- Theme & Quality Score expansion
-- Full parallel generation farm
+- **変数:** 辺ごとに 1 つ（True=ループ）。
+- **次数制約:** 各頂点で ∑Edge ∈ {N,E,S,W} = 0 or 2。2‑SAT で可。
+- **一意解チェック:**
+
+  1. モデル ① 取得。
+  2. ブロッキング節を追加し、競合制限 1000 で再度 `solve()` 。
+  3. 2 解目が見つかれば non‑unique。
 
 ---
 
-### Quick Start for Programmers
+## 4. 速度改善の目安
+
+| 手順           | 10×10 (平均) | 20×20 (平均) |
+| -------------- | ------------ | ------------ |
+| **Before**     | 5–10 s       | 30–120 s     |
+| **A1 適用**    | ≈0.4 s       | ≈8 s         |
+| **A2+A3 適用** | ≈0.3 s       | ≈6 s         |
+| **A4+A5**      | 影響なし     | 影響なし     |
+
+---
+
+## 5. クオリティ維持の注意点
+
+- Quality Score  計算は現状ロジックを温存し、閾値  50 を下回った盤面は破棄。
+- 失敗率が上がった場合は `solver_step_limit` と `timeout_s` を一時的に緩めて原因を確認。
+
+---
+
+### 完了条件
+
+- 10×10 ≤ 1 s、20×20 ≤ 15 s を **手元の PC** で達成。
+- Quality Score ≥ 50 かつ一意解が保証されている。
+
+---
+
+## 付録: 便利コマンド
 
 ```bash
-pip install numpy pysat snakeviz
-pytest  # ensure no regressions
-python bench/bench.py
+# Wilson 法だけを試す簡易スクリプト
+python - <<'PY'
+from generator.loop_wilson import generate_loop
+print(generate_loop(10, 10))
+PY
+
+# SAT 一意解チェックの単体テスト
+python - <<'PY'
+from sat_unique import is_unique
+# hints, rows, cols を適当な JSON から読んでチェック
+PY
 ```
