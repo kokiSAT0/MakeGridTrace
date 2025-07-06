@@ -20,7 +20,6 @@ from src import constants  # noqa: E402
 from src import sat_unique  # noqa: E402
 
 
-
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
     puzzle = cast(Dict[str, Any], generator.generate_puzzle(4, 4, seed=0))
     # JSON に変換できるか確認
@@ -109,6 +108,26 @@ def test_generate_puzzle_theme_spiral() -> None:
     validator.validate_puzzle(puzzle)
     assert puzzle["theme"] == "spiral"
     assert puzzle["generationParams"]["theme"] == "spiral"
+
+
+def test_generate_puzzle_theme_figure8() -> None:
+    puzzle = cast(
+        Dict[str, Any],
+        generator.generate_puzzle(3, 3, difficulty="easy", theme="figure8", seed=13),
+    )
+    validator.validate_puzzle(puzzle)
+    assert puzzle["theme"] == "figure8"
+    assert puzzle["generationParams"]["theme"] == "figure8"
+
+
+def test_generate_puzzle_theme_labyrinth() -> None:
+    puzzle = cast(
+        Dict[str, Any],
+        generator.generate_puzzle(3, 3, difficulty="easy", theme="labyrinth", seed=14),
+    )
+    validator.validate_puzzle(puzzle)
+    assert puzzle["theme"] == "labyrinth"
+    assert puzzle["generationParams"]["theme"] == "labyrinth"
 
 
 @pytest.mark.slow

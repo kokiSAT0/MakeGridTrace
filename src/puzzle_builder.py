@@ -8,21 +8,26 @@ import math
 import random
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+import numpy as np
+from numba import njit
+
+try:
+    from . import sat_unique
+except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+    import sat_unique
+
 if TYPE_CHECKING:
     from src.solver import PuzzleSize, count_solutions
     from src.constants import _evaluate_difficulty
-    from src.validator import count_zero_adjacent
 else:
     try:
         # パッケージとして実行された場合の相対インポート
         from .solver import PuzzleSize, count_solutions
         from .constants import _evaluate_difficulty
-        from .validator import count_zero_adjacent
     except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
         # スクリプトとして直接実行されたときは同じディレクトリからインポートする
         from solver import PuzzleSize, count_solutions
         from constants import _evaluate_difficulty
-        from validator import count_zero_adjacent
 
 Puzzle = Dict[str, Any]
 
@@ -65,6 +70,111 @@ def _calculate_hint_dispersion(clues: List[List[int | None]]) -> float:
     return filled / total if total else 0.0
 
 
+@njit
+def _quality_core(
+    clues_arr: np.ndarray, curve_ratio: float, solver_steps: int, loop_length: int
+) -> float:
+    """Numba 対応の Quality Score 計算本体"""
+
+    rows, cols = clues_arr.shape
+    cells = rows * cols
+    if cells == 0:
+        return 0.0
+
+    hint_count = 0
+    for r in range(rows):
+        for c in range(cols):
+            if clues_arr[r, c] >= 0:
+                hint_count += 1
+
+    p = hint_count / cells
+    if p == 0.0 or p == 1.0:
+        entropy = 0.0
+    else:
+        entropy = -(p * math.log2(p) + (1.0 - p) * math.log2(1.0 - p))
+
+    # 3x3 ブロックごとのヒント有無を調べ分散度を求める
+    block_rows = (rows + 2) // 3
+    block_cols = (cols + 2) // 3
+    filled = 0
+    for br in range(block_rows):
+        for bc in range(block_cols):
+            found = False
+            for r in range(br * 3, min((br + 1) * 3, rows)):
+                for c in range(bc * 3, min((bc + 1) * 3, cols)):
+                    if clues_arr[r, c] >= 0:
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
+                filled += 1
+    dispersion = (
+        filled / (block_rows * block_cols) if block_rows * block_cols > 0 else 0.0
+    )
+
+    density_score = 1.0 - min(1.0, abs(p - 0.25) * 4.0)
+
+    if hint_count > 0:
+        max_row = 0
+        min_row = hint_count
+        for r in range(rows):
+            cnt = 0
+            for c in range(cols):
+                if clues_arr[r, c] >= 0:
+                    cnt += 1
+            if cnt > max_row:
+                max_row = cnt
+            if cnt < min_row:
+                min_row = cnt
+        max_col = 0
+        min_col = hint_count
+        for c in range(cols):
+            cnt = 0
+            for r in range(rows):
+                if clues_arr[r, c] >= 0:
+                    cnt += 1
+            if cnt > max_col:
+                max_col = cnt
+            if cnt < min_col:
+                min_col = cnt
+        row_balance = 1.0 - (max_row - min_row) / hint_count
+        col_balance = 1.0 - (max_col - min_col) / hint_count
+    else:
+        row_balance = 0.0
+        col_balance = 0.0
+    balance_score = max(0.0, (row_balance + col_balance) / 2.0)
+
+    zero_pairs = 0
+    for r in range(rows):
+        for c in range(cols):
+            if clues_arr[r, c] == 0:
+                if r + 1 < rows and clues_arr[r + 1, c] == 0:
+                    zero_pairs += 1
+                if c + 1 < cols and clues_arr[r, c + 1] == 0:
+                    zero_pairs += 1
+    zero_ratio = zero_pairs / cells
+
+    curve_score = 50.0 * min(1.0, max(0.0, (curve_ratio - 0.15) / 0.3))
+    entropy_score = 50.0 * min(1.0, max(0.0, (entropy - 0.2) / 0.7))
+
+    score = curve_score + entropy_score
+    score += 15.0 * dispersion
+    score += 10.0 * density_score
+    score += 15.0 * balance_score
+    score += min(10.0, 10000.0 / (solver_steps + 1))
+    max_len = 2 * (rows + cols)
+    length_ratio = min(1.0, loop_length / max_len) if max_len > 0 else 0.0
+    score += 20.0 * length_ratio
+    score -= 30.0 * zero_ratio
+
+    if score < 0.0:
+        score = 0.0
+    if score > 100.0:
+        score = 100.0
+    return round(score, 2)
+
+
 def _calculate_quality_score(
     clues: List[List[int | None]],
     curve_ratio: float,
@@ -74,53 +184,50 @@ def _calculate_quality_score(
     """品質指標 (Quality Score) を計算する
 
     曲率比率に加え、ヒント密度や分散度など複数の統計から総合的な
-    スコアを算出する。``loop_length`` が短すぎる場合は減点し、
-    外周だけのループが高得点になるのを防ぐ。
+    スコアを算出する関数。Phase 2 ではウェイト調整を行い、
+    ``curve_ratio`` とエントロピーを最大 50 点まで、ソルバー手数を
+    10 点、行列バランスを 15 点として評価する。
+
+    ``loop_length`` が短すぎる場合は減点し、外周だけのループが
+    高得点になるのを防ぐ。
     """
 
-    cells = len(clues) * len(clues[0]) if clues else 0
-    if cells == 0:
-        return 0.0
-    hint_count = sum(1 for row in clues for v in row if v is not None)
-    p = hint_count / cells
-    if p in (0.0, 1.0):
-        entropy = 0.0
-    else:
-        entropy = -(p * math.log2(p) + (1 - p) * math.log2(1 - p))
-
-    dispersion = _calculate_hint_dispersion(clues)
-
-    # ヒント密度が 25% 程度から大きく外れると減点する
-    density_score = 1.0 - min(1.0, abs(p - 0.25) * 4)
-
-    # 行・列ごとのヒント数のばらつきを評価 (均一なら 1.0)
-    row_counts = [sum(1 for v in row if v is not None) for row in clues]
-    col_counts = [
-        sum(1 for row in clues if row[c] is not None) for c in range(len(clues[0]))
-    ]
-    if hint_count > 0:
-        row_balance = 1.0 - (max(row_counts) - min(row_counts)) / hint_count
-        col_balance = 1.0 - (max(col_counts) - min(col_counts)) / hint_count
-    else:
-        row_balance = col_balance = 0.0
-    balance_score = max(0.0, (row_balance + col_balance) / 2)
-
-    zero_pairs = count_zero_adjacent(
-        [[v if v is not None else -1 for v in row] for row in clues]
+    arr = np.array(
+        [[v if v is not None else -1 for v in row] for row in clues], dtype=np.int8
     )
-    zero_ratio = zero_pairs / cells if cells else 0.0
+    base = _quality_core(arr, curve_ratio, solver_steps, loop_length)
+    return float(base)
 
-    score = 20 * math.log10(max(curve_ratio * 100, 0.01)) + 25 * entropy
-    score += 15 * dispersion
-    score += 10 * density_score
-    score += 10 * balance_score
-    score += min(15.0, 10000.0 / (solver_steps + 1))
-    # 盤面サイズに対するループ長の割合を 0~1 で計算しスコアに加算
-    max_len = 2 * (len(clues) + len(clues[0]))
-    length_ratio = min(1.0, loop_length / max_len) if max_len else 0.0
-    score += 20 * length_ratio
-    score -= 30 * zero_ratio
-    return round(max(0.0, min(100.0, score)), 2)
+
+def _calculate_edge_coverage(
+    clues: List[List[int | None]], size: PuzzleSize
+) -> Dict[tuple[int, int], int]:
+    """各ヒントが単独でカバーする辺の数を計算するヘルパー
+
+    周囲のセルにヒントがない辺のみをカウントする。境界上の辺は
+    他セルと共有しないため、そのヒントの専有とみなす。
+    """
+
+    coverage: Dict[tuple[int, int], int] = {}
+    for r in range(size.rows):
+        for c in range(size.cols):
+            if clues[r][c] is None:
+                continue
+            count = 0
+            # 上辺
+            if r == 0 or clues[r - 1][c] is None:
+                count += 1
+            # 下辺
+            if r == size.rows - 1 or clues[r + 1][c] is None:
+                count += 1
+            # 左辺
+            if c == 0 or clues[r][c - 1] is None:
+                count += 1
+            # 右辺
+            if c == size.cols - 1 or clues[r][c + 1] is None:
+                count += 1
+            coverage[(r, c)] = count
+    return coverage
 
 
 def _reduce_clues(
@@ -131,35 +238,45 @@ def _reduce_clues(
     min_hint: int,
     step_limit: int | None = None,
 ) -> List[List[int | None]]:
-    """ヒントをランダムに削減して一意性を保つ
+    """ヒントを依存度の低い順に削減して一意性を保つ
 
-    以前は ``0`` が隣接するとエラーとしていたが、
-    現在は ``0`` の隣接は少ないほど望ましいという
-    ソフト制約として扱うためチェックを行わない。
+    従来はランダム順で削除していたが、事前に各ヒントの "edge coverage"
+    (そのヒントだけが参照する辺の数) を計算し、値が小さいものから
+    順に試すことでソルバの呼び出し回数を減らす。
+
+    以前は ``0`` が隣接するとエラーとしていたが、現在は ``0`` の隣接は
+    少ないほど望ましいというソフト制約として扱うためチェックしない。
 
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
     :param step_limit: ソルバーに渡すステップ上限
     """
 
-    if step_limit is None:
-        # 盤面サイズに比例した探索上限を設定する
-        step_limit = size.rows * size.cols * 25
+
 
     result: List[List[int | None]] = [[v for v in row] for row in clues]
-    cells = [(r, c) for r in range(size.rows) for c in range(size.cols)]
-    rng.shuffle(cells)
 
-    for r, c in cells:
-        if result[r][c] is None:
-            continue
+    # Edge coverage を計算し、値が小さいヒントから順に試す
+    coverage = _calculate_edge_coverage(result, size)
+    cells = [
+        (coverage.get((r, c), 0), r, c)
+        for r in range(size.rows)
+        for c in range(size.cols)
+        if result[r][c] is not None
+    ]
+    cells.sort()  # coverage が小さい順に並ぶ
+
+    for _, r, c in cells:
         original = result[r][c]
         result[r][c] = None
         hint_count = sum(1 for row in result for v in row if v is not None)
-        if (
-            hint_count < min_hint
-            or count_solutions(result, size, limit=2, step_limit=step_limit) != 1
-        ):
+        if hint_count < min_hint:
             result[r][c] = original
+            continue
+
+        # SAT ソルバーで一意解かどうか確認する
+        if not sat_unique.is_unique(result, size):
+            result[r][c] = original
+            continue
 
     return result
 
@@ -184,6 +301,8 @@ def _optimize_clues(
 
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
     :param iterations: 試行回数。多いほど時間が掛かるが精度が上がる
+    盤面が小さいときは温度を低め、大きいときは高めから始めて
+    冷却率も緩やかにすることで過剰なランダム性を抑えます。
     """
 
     if step_limit is None:
@@ -198,10 +317,16 @@ def _optimize_clues(
 
     current = [row[:] for row in best]
     current_score = best_score
-    temperature = 1.0
+
+    # 盤面サイズに応じて初期温度と冷却率を調整する
+    # セル数の平方根を基準スケールとし、小盤面は低温から、大盤面は高温から始める
+    scale = max(0.5, math.sqrt(size.rows * size.cols) / 5)
+    temperature = scale
+    cooling_rate = 0.95 ** (1 / scale)
 
     for _ in range(iterations):
-        temperature = max(0.01, temperature * 0.95)
+        # 冷却率を乗算しながら最低温度 0.01 を維持する
+        temperature = max(0.01, temperature * cooling_rate)
         r = rng.randrange(size.rows)
         c = rng.randrange(size.cols)
         candidate = [row[:] for row in current]
