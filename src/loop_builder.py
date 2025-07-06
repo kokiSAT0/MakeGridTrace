@@ -101,8 +101,8 @@ def _generate_random_loop(
     np_rng = np.random.default_rng(rng.randint(0, 2**32))
     dir_order = [tuple(v) for v in np_rng.permutation(base_dirs)]
 
-    def search_loop(current: tuple[int, int]) -> bool:
-        """再帰的に経路を伸ばし、閉ループを見つける"""
+    def _search_loop_dfs(current: tuple[int, int]) -> bool:
+        """深さ優先で経路を探索し閉ループを探す"""
 
         # 最小長を満たした状態で開始点に戻れば成功
         if len(route) >= min_len and current == start_vertex and len(route) > 1:
@@ -142,15 +142,85 @@ def _generate_random_loop(
             # 候補辺を追加して再帰呼び出し
             add_edge(current, next_vertex)
             route.append(next_vertex)
-            if search_loop(next_vertex):
+            if _search_loop_dfs(next_vertex):
                 return True
             # 失敗した場合は追加した辺を取り消す
             route.pop()
             remove_edge(current, next_vertex)
         return False
 
-    # search_loop が失敗した場合は単純な外周ループを作成
-    if not search_loop(start_vertex):
+    def _search_loop_bfs() -> bool:
+        """幅優先でループを探索する簡易実装"""
+
+        from collections import deque
+
+        State = tuple[
+            tuple[int, int],
+            list[tuple[int, int]],
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+        ]
+
+        start_state: State = (
+            start_vertex,
+            [start_vertex],
+            h_edges.copy(),
+            v_edges.copy(),
+            degrees.copy(),
+        )
+
+        queue: deque[State] = deque([start_state])
+        steps = 0
+        while queue and steps < 2000:
+            current, rpath, h, v, deg = queue.popleft()
+            steps += 1
+            if len(rpath) >= min_len and current == start_vertex and len(rpath) > 1:
+                h_edges[:, :] = h
+                v_edges[:, :] = v
+                degrees[:, :] = deg
+                route[:] = rpath
+                return True
+
+            if len(rpath) > max_len:
+                continue
+
+            offset = rng.randint(0, len(dir_order) - 1)
+            directions = dir_order[offset:] + dir_order[:offset]
+            for dr, dc in directions:
+                nr, nc = current[0] + dr, current[1] + dc
+                if not (0 <= nr <= size.rows and 0 <= nc <= size.cols):
+                    continue
+                if deg[nr, nc] >= 2 or deg[current[0], current[1]] >= 2:
+                    continue
+                if current[0] == nr:
+                    r_idx = current[0]
+                    c_idx = min(current[1], nc)
+                    if h[r_idx, c_idx] != 0:
+                        continue
+                else:
+                    c_idx = current[1]
+                    r_idx = min(current[0], nr)
+                    if v[r_idx, c_idx] != 0:
+                        continue
+                if (nr, nc) == start_vertex and len(rpath) + 1 < min_len:
+                    continue
+
+                h2 = h.copy()
+                v2 = v.copy()
+                deg2 = deg.copy()
+                if current[0] == nr:
+                    h2[r_idx, c_idx] = 1
+                else:
+                    v2[r_idx, c_idx] = 1
+                deg2[current[0], current[1]] += 1
+                deg2[nr, nc] += 1
+                queue.append(((nr, nc), rpath + [(nr, nc)], h2, v2, deg2))
+
+        return False
+
+    # まず DFS で探索し、失敗したら BFS を試す
+    if not _search_loop_dfs(start_vertex) and not _search_loop_bfs():
         for c in range(size.cols):
             h_edges[0, c] = 1
             h_edges[size.rows, c] = 1
@@ -404,7 +474,7 @@ def _warmup_numba() -> None:
     """Numba コンパイルを事前に行うウォームアップ関数"""
 
     # 1x1 のダミー配列を使い JIT を走らせる
-    dummy = np.zeros((1, 1), dtype=np.uint8)
+    dummy: np.ndarray = np.zeros((1, 1), dtype=np.uint8)
     _count_edges_bitboard(dummy, dummy)
     _curve_ratio_bitboard(dummy, dummy, 0, 0)
 
