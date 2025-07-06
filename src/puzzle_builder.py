@@ -251,9 +251,7 @@ def _reduce_clues(
     :param step_limit: ソルバーに渡すステップ上限
     """
 
-    if step_limit is None:
-        # 盤面サイズに比例した探索上限を設定する
-        step_limit = size.rows * size.cols * 25
+
 
     result: List[List[int | None]] = [[v for v in row] for row in clues]
 
@@ -275,14 +273,10 @@ def _reduce_clues(
             result[r][c] = original
             continue
 
-        # SAT ソルバーで一意解かどうか簡易チェックする
+        # SAT ソルバーで一意解かどうか確認する
         if not sat_unique.is_unique(result, size):
             result[r][c] = original
             continue
-
-        # 一意解が確認できたら探索ソルバーでも検証する
-        if count_solutions(result, size, limit=2, step_limit=step_limit) != 1:
-            result[r][c] = original
 
     return result
 
