@@ -153,7 +153,13 @@ def _generate_random_loop(
         return False
 
     def _search_loop_bfs() -> bool:
-        """幅優先でループを探索する簡易実装"""
+        """幅優先でループを探索する実装
+
+        Python の ``deque`` を使ってキューを管理しつつ、NumPy 配列操作を
+        可能な限りベクトル化して探索を行う。各状態ごとに配列をコピーする
+        のはコストが高いが、今回は実装を簡潔に保つためコピー方式を採用
+        している。初心者の方は「幅優先探索」とは、探索の幅を広げながら
+        ゴールを目指す方法だと覚えておこう。"""
 
         from collections import deque
 
@@ -188,36 +194,52 @@ def _generate_random_loop(
             if len(rpath) > max_len:
                 continue
 
-            # BFS でも頂点ごとに決めた方向順序を使用
-            for dr, dc in vertex_dirs[current]:
-                nr, nc = current[0] + dr, current[1] + dc
-                if not (0 <= nr <= size.rows and 0 <= nc <= size.cols):
-                    continue
-                if deg[nr, nc] >= 2 or deg[current[0], current[1]] >= 2:
-                    continue
-                if current[0] == nr:
-                    r_idx = current[0]
-                    c_idx = min(current[1], nc)
-                    if h[r_idx, c_idx] != 0:
-                        continue
-                else:
-                    c_idx = current[1]
-                    r_idx = min(current[0], nr)
-                    if v[r_idx, c_idx] != 0:
-                        continue
-                if (nr, nc) == start_vertex and len(rpath) + 1 < min_len:
-                    continue
+            # 候補となる4方向を一度に計算する
+            dirs = np.array(vertex_dirs[current], dtype=np.int16)
+            next_rc = dirs + np.array(current, dtype=np.int16)
 
+            nr = next_rc[:, 0]
+            nc = next_rc[:, 1]
+
+            # 盤面内に収まるかをベクトルで判定
+            valid = (nr >= 0) & (nr <= size.rows) & (nc >= 0) & (nc <= size.cols)
+            if not np.any(valid):
+                continue
+
+            # 各頂点の次数チェック
+            valid &= deg[nr, nc] < 2
+            valid &= deg[current[0], current[1]] < 2
+
+            # 辺の存在チェックを水平・垂直ごとに処理
+            hor_mask = nr == current[0]
+            r_idx = np.minimum(current[0], nr)
+            c_idx = np.minimum(current[1], nc)
+            valid &= np.where(
+                hor_mask,
+                h[r_idx, c_idx] == 0,
+                v[r_idx, c_idx] == 0,
+            )
+
+            # 最小長に満たないうちに開始点へ戻らないよう除外
+            valid &= ~(
+                (nr == start_vertex[0])
+                & (nc == start_vertex[1])
+                & (len(rpath) + 1 < min_len)
+            )
+
+            for i in np.nonzero(valid)[0]:
+                nr_i = int(nr[i])
+                nc_i = int(nc[i])
                 h2 = h.copy()
                 v2 = v.copy()
                 deg2 = deg.copy()
-                if current[0] == nr:
-                    h2[r_idx, c_idx] = 1
+                if hor_mask[i]:
+                    h2[r_idx[i], c_idx[i]] = 1
                 else:
-                    v2[r_idx, c_idx] = 1
+                    v2[r_idx[i], c_idx[i]] = 1
                 deg2[current[0], current[1]] += 1
-                deg2[nr, nc] += 1
-                queue.append(((nr, nc), rpath + [(nr, nc)], h2, v2, deg2))
+                deg2[nr_i, nc_i] += 1
+                queue.append(((nr_i, nc_i), rpath + [(nr_i, nc_i)], h2, v2, deg2))
 
         return False
 
