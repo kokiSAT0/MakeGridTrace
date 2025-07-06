@@ -1,54 +1,56 @@
-> **先行きメモ (Phase 3)**
+# Slitherlink Phase 3 – Loop Generation & JIT Overhead
 
-# Phase 3 – Scalability & Robustness (目安 1 週間)
-
-> **現状の課題:** 盤面サイズが 7×7 以上になると生成が失敗／タイムアウトする。
+> **Profile insight (after Phase 2.5):**
 >
-> **ゴール:** 15×15 までを **≤ 20 s**, 30×30 を **≤ 60 s** で生成し、Fail 率 ≤10%。Quality Score の中央値は Phase 2 と同等 (≥70) を維持。
+> - `generate_loop_with_symmetry → loop_wilson.generate → loop_builder.search_loop` dominates **≈ 13 s / 16 s**.
+> - `random.shuffle` & `Random.getrandbits` called 10 M+ times.
+> - Numba JIT compilation (`dispatcher.py`, `compiler.py`) costs **≈ 1 s** each run – repeated across boards.
+>
+> **Goal:** Cut loop‑generation cost by ≥ ×3 and make Numba compile once per session. Target 15×15 ≤ 8 s total.
 
 ---
 
-## 1. 調査ログの取得
+## 1 – Task List (Phase 3)
 
-1. `--profile` で 10×10 と 15×15 を比較し、ホットスポットを特定。
-2. `timeout_s` を無限大にして 15×15 を 1 回走らせ、_どこ_ で停止するかを確認（SAT か Clue 削減か）。
+| ID                                                               | Impact | Task                                                             | Implementation Hints                                                                          |
+| ---------------------------------------------------------------- | ------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **L1**                                                           | ★★★★☆  | **Deterministic edge iteration – drop `random.shuffle` hotspot** | In `loop_builder.search_loop`, replace per‑step `random.shuffle(edges)` with:<br>\`\`\`python |
+| edges = np.random.permutation(edge_index_array) # once per board |        |                                                                  |                                                                                               |
 
----
-
-## 2. 主要ボトルネックと対策
-
-| ID     | 症状                                  | 原因 (想定)                                   | 改善タスク                                                                                                                  |
-| ------ | ------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **C1** | SAT のメモリ・時間肥大                | CNF サイズ = O(E) ≈ O(N²) で急増              | **Edge Grouping:** 盤面を 2×2 ブロック単位で _core variables_ のみ SAT に残し、局所辺は前計算で消去。→ 変数数を \~¼ に。    |
-| **C2** | Clue 削減で再帰的に SAT を呼び過ぎ    | 大盤面では失敗例が増えリトライ地獄            | **Lazy Check:** 最初は _approx unique_ (影響半径/Parities) でフィルタし、SAT は最後の 2–3 ステップだけ呼ぶ。                |
-| **C3** | Quality Score 計算が純 Python         | Numpy/Numba 化済でも 900+KB の配列コピー      | **Bitboard Cache:** `qscore.py` にループ不変のビットマスクをキャッシュし、ボードごとに再生成しない。                        |
-| **C4** | ループ生成が時々 ∞ ループ             | Wilson 法で低確率に“全頂点訪問前に閉じちゃう” | **Watchdog:** ループ長 < 50% _E_ なら即リスタート。                                                                         |
-| **C5** | Python GIL で CPU 使用率 1 コア止まり | SAT 以外は Python 領域                        | **`multiprocessing` Parallelism:** 盤面を 2–4 個並列生成し、最初に成功したものを返す。（ローカル PC でも 4 コアはある想定） |
+```<br>or reservoir sampling to avoid full shuffle each loop. |
+| **L2** | ★★★★☆ | **Bitboard edge set & vectorised existence checks** | Store horizontal / vertical edge occupancy in two `uint8` NumPy arrays; use boolean masks instead of per‑edge `edge_exists()` Python calls. |
+| **L3** | ★★★☆☆ | **Loop search rewritten as BFS over bitboards** | Break out of deep recursion; iterative queue with NumPy operations drastically reduces call count. |
+| **L4** | ★★★☆☆ | **Wilson‑UST pure‑NumPy version** | Generate *uniform spanning tree* via Wilson using pre‑allocated arrays & vectorised random walks; union‑find in NumPy to cut Python loops. |
+| **L5** | ★★★☆☆ | **Per‑process Numba warm‑up cache** | Call critical Numba‑compiled funcs once on worker spawn; or use `numba.caching` to write `.nbc` artefacts between runs. |
+| **L6** | ★★☆☆☆ | **JIT compile guard** | Wrap compile‑heavy Numba functions with `@njit(cache=True)` and unit‑test at import time to avoid runtime compile hits. |
+| **L7** | ★★☆☆☆ | **Adaptive max walk length** | Terminate random walk early if loop length exceeds 1.5 × board perimeter – avoids long wandering on large boards. |
 
 ---
 
-## 3. タスクリスト（優先順）
+## 2 – Milestones & Bench Targets
 
-| ID     | 期待効果 | タスク                                                      |
-| ------ | -------- | ----------------------------------------------------------- |
-| **C1** | ★★★★☆    | CNF Edge Grouping & Variable Elimination                    |
-| **C2** | ★★★★☆    | Approx‑Unique チェック実装 (`approx_unique(board) -> bool`) |
-| **C3** | ★★★☆☆    | Quality Score ビットボードキャッシュ                        |
-| **C4** | ★★☆☆☆    | ループ長ウォッチドッグと速攻リトライ                        |
-| **C5** | ★★☆☆☆    | `ProcessPoolExecutor` による 4 並列生成                     |
+| Milestone | Expected Avg Time (15×15) | Notes |
+|-----------|--------------------------|-------|
+| After L1 & L2 | ~10 s | Shuffle & existence bottlenecks gone |
+| After L3 & L4 | ≤ 6 s | Vectorised Wilson loop generation |
+| After L5–L6   | compile cost ~0.1 s | First board slower okay; subsequent boards fast |
 
 ---
 
-## 4. 完了条件
-
-- 15×15 を ≤ 20 s, 30×30 を ≤ 60 s で **80% 以上の確率で成功**
-- Quality Score ≥ 70 (中央値) を維持
-- `python -m timeit` で 7×7, 15×15 を継続測定しリグレッションがない
+## 3 – Validation
+1. `python -m timeit -s "from bench import run" "run(15,15,10)"`  → expect mean ≤ 6 s.
+2. `python -Ximporttime -c "import generator"` to ensure Numba compile not repeated.
+3. Profile again; top frame should now be ≤ 4 s for `loop_builder.search_loop`.
 
 ---
 
-## 5. 今後の展望 (Phase 4+)
+## 4 – Out‑of‑Scope (Phase 4)
+* C1/C2 SAT variable reduction (still pending)
+* Async generation farm
+* GUI preview & manual tweaking
 
-- SAT 完全置換: **SMT(Z3) + Counting** で一意性を論理式ごとにプルーニング
-- GUI 連携: リアルタイム生成プレビュー & 手動ヒント調整ツール
-- 生成結果をプレイヤー統計でフィードバックする自動再学習ループ
+---
+
+> **Implement L1 & L2 first** – they require no architectural change and give the biggest immediate win. Then proceed to vectorised rewrite (L3/L4) if further speed needed.
+
+```
