@@ -235,6 +235,8 @@ def _optimize_clues(
 
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
     :param iterations: 試行回数。多いほど時間が掛かるが精度が上がる
+    盤面が小さいときは温度を低め、大きいときは高めから始めて
+    冷却率も緩やかにすることで過剰なランダム性を抑えます。
     """
 
     if step_limit is None:
@@ -249,10 +251,16 @@ def _optimize_clues(
 
     current = [row[:] for row in best]
     current_score = best_score
-    temperature = 1.0
+
+    # 盤面サイズに応じて初期温度と冷却率を調整する
+    # セル数の平方根を基準スケールとし、小盤面は低温から、大盤面は高温から始める
+    scale = max(0.5, math.sqrt(size.rows * size.cols) / 5)
+    temperature = scale
+    cooling_rate = 0.95 ** (1 / scale)
 
     for _ in range(iterations):
-        temperature = max(0.01, temperature * 0.95)
+        # 冷却率を乗算しながら最低温度 0.01 を維持する
+        temperature = max(0.01, temperature * cooling_rate)
         r = rng.randrange(size.rows)
         c = rng.randrange(size.cols)
         candidate = [row[:] for row in current]
