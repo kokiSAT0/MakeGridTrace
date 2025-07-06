@@ -223,7 +223,7 @@ def _apply_horizontal_symmetry(
             vertical[r][sc] = val
 
 
-@njit
+@njit(cache=True)
 def _count_edges_bitboard(h: np.ndarray, v: np.ndarray) -> int:
     """NumPy 配列化された辺の数を数える"""
     count = 0
@@ -238,7 +238,7 @@ def _count_edges_bitboard(h: np.ndarray, v: np.ndarray) -> int:
     return count
 
 
-@njit
+@njit(cache=True)
 def _curve_ratio_bitboard(h: np.ndarray, v: np.ndarray, rows: int, cols: int) -> float:
     """曲率比率を NumPy 配列で高速計算する"""
     curve_count = 0
@@ -392,3 +392,15 @@ __all__ = [
     "_calculate_curve_ratio",
     "combine_patterns",
 ]
+
+
+def _warmup_numba() -> None:
+    """Numba コンパイルを事前に行うウォームアップ関数"""
+
+    # 1x1 のダミー配列を使い JIT を走らせる
+    dummy = np.zeros((1, 1), dtype=np.uint8)
+    _count_edges_bitboard(dummy, dummy)
+    _curve_ratio_bitboard(dummy, dummy, 0, 0)
+
+
+_warmup_numba()
