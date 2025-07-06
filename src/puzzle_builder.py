@@ -8,21 +8,21 @@ import math
 import random
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+import numpy as np
+from numba import njit
+
 if TYPE_CHECKING:
     from src.solver import PuzzleSize, count_solutions
     from src.constants import _evaluate_difficulty
-    from src.validator import count_zero_adjacent
 else:
     try:
         # パッケージとして実行された場合の相対インポート
         from .solver import PuzzleSize, count_solutions
         from .constants import _evaluate_difficulty
-        from .validator import count_zero_adjacent
     except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
         # スクリプトとして直接実行されたときは同じディレクトリからインポートする
         from solver import PuzzleSize, count_solutions
         from constants import _evaluate_difficulty
-        from validator import count_zero_adjacent
 
 Puzzle = Dict[str, Any]
 
@@ -65,6 +65,111 @@ def _calculate_hint_dispersion(clues: List[List[int | None]]) -> float:
     return filled / total if total else 0.0
 
 
+@njit
+def _quality_core(
+    clues_arr: np.ndarray, curve_ratio: float, solver_steps: int, loop_length: int
+) -> float:
+    """Numba 対応の Quality Score 計算本体"""
+
+    rows, cols = clues_arr.shape
+    cells = rows * cols
+    if cells == 0:
+        return 0.0
+
+    hint_count = 0
+    for r in range(rows):
+        for c in range(cols):
+            if clues_arr[r, c] >= 0:
+                hint_count += 1
+
+    p = hint_count / cells
+    if p == 0.0 or p == 1.0:
+        entropy = 0.0
+    else:
+        entropy = -(p * math.log2(p) + (1.0 - p) * math.log2(1.0 - p))
+
+    # 3x3 ブロックごとのヒント有無を調べ分散度を求める
+    block_rows = (rows + 2) // 3
+    block_cols = (cols + 2) // 3
+    filled = 0
+    for br in range(block_rows):
+        for bc in range(block_cols):
+            found = False
+            for r in range(br * 3, min((br + 1) * 3, rows)):
+                for c in range(bc * 3, min((bc + 1) * 3, cols)):
+                    if clues_arr[r, c] >= 0:
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
+                filled += 1
+    dispersion = (
+        filled / (block_rows * block_cols) if block_rows * block_cols > 0 else 0.0
+    )
+
+    density_score = 1.0 - min(1.0, abs(p - 0.25) * 4.0)
+
+    if hint_count > 0:
+        max_row = 0
+        min_row = hint_count
+        for r in range(rows):
+            cnt = 0
+            for c in range(cols):
+                if clues_arr[r, c] >= 0:
+                    cnt += 1
+            if cnt > max_row:
+                max_row = cnt
+            if cnt < min_row:
+                min_row = cnt
+        max_col = 0
+        min_col = hint_count
+        for c in range(cols):
+            cnt = 0
+            for r in range(rows):
+                if clues_arr[r, c] >= 0:
+                    cnt += 1
+            if cnt > max_col:
+                max_col = cnt
+            if cnt < min_col:
+                min_col = cnt
+        row_balance = 1.0 - (max_row - min_row) / hint_count
+        col_balance = 1.0 - (max_col - min_col) / hint_count
+    else:
+        row_balance = 0.0
+        col_balance = 0.0
+    balance_score = max(0.0, (row_balance + col_balance) / 2.0)
+
+    zero_pairs = 0
+    for r in range(rows):
+        for c in range(cols):
+            if clues_arr[r, c] == 0:
+                if r + 1 < rows and clues_arr[r + 1, c] == 0:
+                    zero_pairs += 1
+                if c + 1 < cols and clues_arr[r, c + 1] == 0:
+                    zero_pairs += 1
+    zero_ratio = zero_pairs / cells
+
+    curve_score = 50.0 * min(1.0, max(0.0, (curve_ratio - 0.15) / 0.3))
+    entropy_score = 50.0 * min(1.0, max(0.0, (entropy - 0.2) / 0.7))
+
+    score = curve_score + entropy_score
+    score += 15.0 * dispersion
+    score += 10.0 * density_score
+    score += 15.0 * balance_score
+    score += min(10.0, 10000.0 / (solver_steps + 1))
+    max_len = 2 * (rows + cols)
+    length_ratio = min(1.0, loop_length / max_len) if max_len > 0 else 0.0
+    score += 20.0 * length_ratio
+    score -= 30.0 * zero_ratio
+
+    if score < 0.0:
+        score = 0.0
+    if score > 100.0:
+        score = 100.0
+    return round(score, 2)
+
+
 def _calculate_quality_score(
     clues: List[List[int | None]],
     curve_ratio: float,
@@ -82,56 +187,11 @@ def _calculate_quality_score(
     高得点になるのを防ぐ。
     """
 
-    cells = len(clues) * len(clues[0]) if clues else 0
-    if cells == 0:
-        return 0.0
-    hint_count = sum(1 for row in clues for v in row if v is not None)
-    p = hint_count / cells
-    if p in (0.0, 1.0):
-        entropy = 0.0
-    else:
-        entropy = -(p * math.log2(p) + (1 - p) * math.log2(1 - p))
-
-    dispersion = _calculate_hint_dispersion(clues)
-
-    # ヒント密度が 25% 程度から大きく外れると減点する
-    density_score = 1.0 - min(1.0, abs(p - 0.25) * 4)
-
-    # 行・列ごとのヒント数のばらつきを評価 (均一なら 1.0)
-    row_counts = [sum(1 for v in row if v is not None) for row in clues]
-    col_counts = [
-        sum(1 for row in clues if row[c] is not None) for c in range(len(clues[0]))
-    ]
-    if hint_count > 0:
-        row_balance = 1.0 - (max(row_counts) - min(row_counts)) / hint_count
-        col_balance = 1.0 - (max(col_counts) - min(col_counts)) / hint_count
-    else:
-        row_balance = col_balance = 0.0
-    balance_score = max(0.0, (row_balance + col_balance) / 2)
-
-    zero_pairs = count_zero_adjacent(
-        [[v if v is not None else -1 for v in row] for row in clues]
+    arr = np.array(
+        [[v if v is not None else -1 for v in row] for row in clues], dtype=np.int8
     )
-    zero_ratio = zero_pairs / cells if cells else 0.0
-
-    # ウェイト調整に基づき各指標をスケール
-    # 曲率比率とヒントエントロピーは 0～50 点の範囲で評価する
-    curve_score = 50.0 * min(1.0, max(0.0, (curve_ratio - 0.15) / 0.3))
-    entropy_score = 50.0 * min(1.0, max(0.0, (entropy - 0.2) / 0.7))
-
-    score = curve_score + entropy_score
-    score += 15 * dispersion
-    score += 10 * density_score
-    # 行・列バランスのウェイトを 15 点へ引き上げ
-    score += 15 * balance_score
-    # ソルバー手数は最大 10 点に抑える
-    score += min(10.0, 10000.0 / (solver_steps + 1))
-    # 盤面サイズに対するループ長の割合を 0~1 で計算しスコアに加算
-    max_len = 2 * (len(clues) + len(clues[0]))
-    length_ratio = min(1.0, loop_length / max_len) if max_len else 0.0
-    score += 20 * length_ratio
-    score -= 30 * zero_ratio
-    return round(max(0.0, min(100.0, score)), 2)
+    base = _quality_core(arr, curve_ratio, solver_steps, loop_length)
+    return float(base)
 
 
 def _calculate_edge_coverage(

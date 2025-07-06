@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Dict, List, TYPE_CHECKING
 import random
 
+import numpy as np
+from numba import njit
+
 try:
     # 定義済みの小ループパターンを読み込む
     from .pattern_builder import PATTERNS
@@ -27,6 +30,15 @@ def _create_empty_edges(size: PuzzleSize) -> Dict[str, List[List[bool]]]:
     horizontal = [[False for _ in range(size.cols)] for _ in range(size.rows + 1)]
     vertical = [[False for _ in range(size.cols + 1)] for _ in range(size.rows)]
     return {"horizontal": horizontal, "vertical": vertical}
+
+
+def _pack_edges(edges: Dict[str, List[List[bool]]]) -> tuple[np.ndarray, np.ndarray]:
+    """辺情報を NumPy 配列へ変換する簡易ヘルパー"""
+
+    # ブール値を 0/1 の uint8 配列へ変換する
+    h = np.array(edges["horizontal"], dtype=np.uint8)
+    v = np.array(edges["vertical"], dtype=np.uint8)
+    return h, v
 
 
 def _generate_random_loop(
@@ -200,37 +212,57 @@ def _apply_horizontal_symmetry(
             vertical[r][sc] = val
 
 
+@njit
+def _count_edges_bitboard(h: np.ndarray, v: np.ndarray) -> int:
+    """NumPy 配列化された辺の数を数える"""
+    count = 0
+    for r in range(h.shape[0]):
+        for c in range(h.shape[1]):
+            if h[r, c] != 0:
+                count += 1
+    for r in range(v.shape[0]):
+        for c in range(v.shape[1]):
+            if v[r, c] != 0:
+                count += 1
+    return count
+
+
+@njit
+def _curve_ratio_bitboard(h: np.ndarray, v: np.ndarray, rows: int, cols: int) -> float:
+    """曲率比率を NumPy 配列で高速計算する"""
+    curve_count = 0
+    for r in range(rows + 1):
+        for c in range(cols + 1):
+            deg_h = 0
+            deg_v = 0
+            if c < cols and h[r, c] != 0:
+                deg_h += 1
+            if c > 0 and h[r, c - 1] != 0:
+                deg_h += 1
+            if r < rows and v[r, c] != 0:
+                deg_v += 1
+            if r > 0 and v[r - 1, c] != 0:
+                deg_v += 1
+            if deg_h + deg_v == 2 and deg_h == 1 and deg_v == 1:
+                curve_count += 1
+    total = _count_edges_bitboard(h, v)
+    return curve_count / total if total > 0 else 0.0
+
+
 def _count_edges(edges: Dict[str, List[List[bool]]]) -> int:
     """True の数を数えてループ長を求める"""
-    return sum(sum(row) for row in edges["horizontal"]) + sum(
-        sum(row) for row in edges["vertical"]
-    )
+
+    h, v = _pack_edges(edges)
+    return int(_count_edges_bitboard(h, v))
 
 
 def _calculate_curve_ratio(
     edges: Dict[str, List[List[bool]]], size: PuzzleSize
 ) -> float:
     """ループ中の曲がり角割合を計算"""
-    curve_count = 0
-    for r in range(size.rows + 1):
-        for c in range(size.cols + 1):
-            connections = []
-            if c < size.cols and edges["horizontal"][r][c]:
-                connections.append("h")
-            if c > 0 and edges["horizontal"][r][c - 1]:
-                connections.append("h")
-            if r < size.rows and edges["vertical"][r][c]:
-                connections.append("v")
-            if r > 0 and edges["vertical"][r - 1][c]:
-                connections.append("v")
-            if (
-                len(connections) == 2
-                and connections.count("h") == 1
-                and connections.count("v") == 1
-            ):
-                curve_count += 1
-    total = _count_edges(edges)
-    return curve_count / total if total > 0 else 0.0
+
+    h, v = _pack_edges(edges)
+    return float(_curve_ratio_bitboard(h, v, size.rows, size.cols))
 
 
 def _split_size(total: int) -> list[int] | None:
