@@ -105,7 +105,8 @@ def _ensure_pool(jobs: Optional[int], log_level: int) -> mp.pool.Pool:
     """プールを生成し必要なら既存のものを再利用する"""
     global _pool
     if _pool is None:
-        proc = jobs if jobs is not None else min(4, CTX.cpu_count())
+        # jobs が指定されていない場合は CPU コア数をそのまま使う
+        proc = jobs if jobs is not None else CTX.cpu_count()
         _pool = CTX.Pool(
             processes=proc,
             maxtasksperchild=20,
