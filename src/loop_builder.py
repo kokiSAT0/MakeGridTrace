@@ -58,18 +58,8 @@ def _generate_random_loop(
     v_edges = np.array(edges["vertical"], dtype=np.uint8)
 
     # 各頂点に接続する辺の数を記録する二次元配列
-    degrees = [[0 for _ in range(size.cols + 1)] for _ in range(size.rows + 1)]
-
-    def edge_exists(a: tuple[int, int], b: tuple[int, int]) -> bool:
-        """2 点間にすでに辺があるか調べるヘルパー"""
-        if a[0] == b[0]:
-            r = a[0]
-            c = min(a[1], b[1])
-            return h_edges[r, c] != 0
-        else:
-            c = a[1]
-            r = min(a[0], b[0])
-            return v_edges[r, c] != 0
+    # 各頂点の次数を NumPy 配列で管理する
+    degrees = np.zeros((size.rows + 1, size.cols + 1), dtype=np.uint8)
 
     def add_edge(a: tuple[int, int], b: tuple[int, int]) -> None:
         """2 点を結ぶ辺を追加し ``degrees`` を更新"""
@@ -135,8 +125,16 @@ def _generate_random_loop(
             if degrees[nr][nc] >= 2 or degrees[current[0]][current[1]] >= 2:
                 continue
             # すでに同じ辺が存在する場合もスキップ
-            if edge_exists(current, next_vertex):
-                continue
+            if current[0] == next_vertex[0]:
+                r = current[0]
+                c = min(current[1], next_vertex[1])
+                if h_edges[r, c] != 0:
+                    continue
+            else:
+                c = current[1]
+                r = min(current[0], next_vertex[0])
+                if v_edges[r, c] != 0:
+                    continue
             # 開始点へ戻る際は最小長を満たしているか確認
             if next_vertex == start_vertex and len(route) + 1 < min_len:
                 continue
