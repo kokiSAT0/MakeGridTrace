@@ -74,6 +74,11 @@ try:
 except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
     from puzzle_types import Puzzle
 
+try:
+    from . import sat_unique
+except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+    import sat_unique
+
 logger = logging.getLogger(__name__)
 
 
@@ -159,19 +164,22 @@ def _compute_clues_and_optimize(
         clues_all, size, rng, min_hint=min_hint, step_limit=solver_step_limit
     )
 
-    base_solutions, base_stats = cast(
-        tuple[int, Dict[str, int]],
+    # PySAT で一意解か確認
+    if not sat_unique.is_unique(clues, size):
+        logger.warning("解が一意でないため再試行します")
+        return None
+
+    # 解析統計は既存ソルバーで取得する
+    base_stats = cast(
+        Dict[str, int],
         count_solutions(
             clues,
             size,
             limit=2,
             return_stats=True,
             step_limit=solver_step_limit,
-        ),
+        )[1],
     )
-    if base_solutions != 1:
-        logger.warning("解が一意でないため再試行します")
-        return None
 
     clues = _optimize_clues(
         clues,
@@ -196,7 +204,7 @@ def _compute_clues_and_optimize(
             step_limit=solver_step_limit,
         ),
     )
-    if solutions != 1:
+    if not sat_unique.is_unique(clues, size):
         logger.warning("解が一意でないためヒントを再計算します")
         clues = cast(List[List[int | None]], [row[:] for row in clues_all])
         solutions, solver_stats = cast(
@@ -209,7 +217,7 @@ def _compute_clues_and_optimize(
                 step_limit=solver_step_limit,
             ),
         )
-        if solutions != 1:
+        if not sat_unique.is_unique(clues, size):
             logger.warning("再試行します")
             return None
 

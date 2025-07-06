@@ -14,6 +14,7 @@ from src import validator  # noqa: E402
 from src import solver  # noqa: E402
 from src import puzzle_builder  # noqa: E402
 from src import loop_builder  # noqa: E402
+from src import sat_unique  # noqa: E402
 
 
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
@@ -348,8 +349,7 @@ def test_generation_params_and_seedhash() -> None:
 def test_count_solutions_unique() -> None:
     puzzle = cast(Dict[str, Any], generator.generate_puzzle(3, 3, seed=9))
     size = solver.PuzzleSize(3, 3)
-    count = solver.count_solutions(puzzle["clues"], size, limit=2, step_limit=500000)
-    assert count == 1
+    assert sat_unique.is_unique(puzzle["clues"], size)
 
 
 def test_reduce_clues_zero_adjacent() -> None:
