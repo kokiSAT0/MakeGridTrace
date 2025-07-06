@@ -251,8 +251,6 @@ def _reduce_clues(
     :param step_limit: ソルバーに渡すステップ上限
     """
 
-
-
     result: List[List[int | None]] = [[v for v in row] for row in clues]
 
     # Edge coverage を計算し、値が小さいヒントから順に試す

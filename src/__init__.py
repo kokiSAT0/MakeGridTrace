@@ -5,6 +5,7 @@ from typing import Any
 
 __all__ = [
     "generate_puzzle",
+    "generate_puzzle_parallel",
     "save_puzzle",
     "validate_puzzle",
     "generate_multiple_puzzles",
@@ -18,7 +19,12 @@ __all__ = [
 def __getattr__(name: str) -> Any:
     """必要になったタイミングで対象モジュールを読み込む"""
 
-    if name in {"generate_puzzle", "generate_multiple_puzzles", "puzzle_to_ascii"}:
+    if name in {
+        "generate_puzzle",
+        "generate_multiple_puzzles",
+        "puzzle_to_ascii",
+        "generate_puzzle_parallel",
+    }:
         module = import_module(".generator", __name__)
         return getattr(module, name)
 
