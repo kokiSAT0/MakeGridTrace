@@ -57,6 +57,8 @@ python -m src.generator 4 4 --difficulty normal
 ```
 
 上記コマンドでは 4×4 の盤面を難易度 `normal` で生成し、`data/map_gridtrace.json` に保存します。保存後は盤面を ASCII 形式で標準出力に表示します。
+プロファイルを取りたい場合は `--profile` を付けて実行します。
+生成後に `profile.prof` が作成され、`snakeviz profile.prof` で詳細を確認できます。
 
 #### コマンドライン引数一覧
 
@@ -73,6 +75,8 @@ python -m src.generator 4 4 --difficulty normal
   します。一つの盤面が完成した時点で残りのワーカーは自動的にキャンセルされ、
   待ち時間を最小限に抑えます。並列時はワーカープロセスのログレベルを WARNING
   に固定し、重要なメッセージだけを表示します。
+- `--profile` : `cProfile` で計測し結果を `profile.prof` に保存します。`snakeviz profile.prof` で
+  グラフィカルに確認できます。
 - `--jobs` : `bulk_generator.py` 用の並列生成プロセス数。値を増やすと早く生成できます。
 
 ### 複数の難易度をまとめて生成する

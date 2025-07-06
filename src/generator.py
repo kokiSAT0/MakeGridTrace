@@ -806,32 +806,37 @@ if __name__ == "__main__":
         default=MAX_SOLVER_STEPS,
         help="ソルバーの最大ステップ数",
     )
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="プロファイル結果を profile.prof に保存する",
+    )
     args = parser.parse_args()
 
+    func_kwargs = {
+        "difficulty": args.difficulty,
+        "seed": args.seed,
+        "symmetry": args.symmetry,
+        "theme": args.theme,
+        "solver_step_limit": args.step_limit,
+        "timeout_s": args.timeout,
+    }
+
     if args.parallel > 1:
-        pzl_obj = generate_puzzle_parallel(
-            args.rows,
-            args.cols,
-            difficulty=args.difficulty,
-            seed=args.seed,
-            symmetry=args.symmetry,
-            theme=args.theme,
-            solver_step_limit=args.step_limit,
-            timeout_s=args.timeout,
-            jobs=args.parallel,
-            worker_log_level=logging.WARNING,
-        )
+        func = generate_puzzle_parallel
+        func_kwargs.update({"jobs": args.parallel, "worker_log_level": logging.WARNING})
     else:
-        pzl_obj = generate_puzzle(
-            args.rows,
-            args.cols,
-            difficulty=args.difficulty,
-            seed=args.seed,
-            symmetry=args.symmetry,
-            theme=args.theme,
-            solver_step_limit=args.step_limit,
-            timeout_s=args.timeout,
-        )
+        func = generate_puzzle
+
+    if args.profile:
+        # cProfile でプロファイルを取得し profile.prof に書き出す
+        import cProfile
+
+        profiler = cProfile.Profile()
+        pzl_obj = profiler.runcall(func, args.rows, args.cols, **func_kwargs)
+        profiler.dump_stats("profile.prof")
+    else:
+        pzl_obj = func(args.rows, args.cols, **func_kwargs)
     pzl = cast(Puzzle, pzl_obj)
     path = save_puzzle(pzl)
     print(f"{path} を作成しました")
