@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from typing import List
+import itertools
 
 from pysat.formula import CNF, IDPool
-from pysat.card import CardEnc
+
+# EncType は PySAT で定義されている列挙型で、
+# エンコーディング方式を数値で表現します
+from pysat.card import CardEnc, EncType
 from pysat.solvers import Minisat22
 
 try:
@@ -14,7 +18,9 @@ except ImportError:  # pragma: no cover
     from solver import PuzzleSize
 
 
-def _create_variables(size: PuzzleSize, pool: IDPool) -> tuple[List[List[int]], List[List[int]]]:
+def _create_variables(
+    size: PuzzleSize, pool: IDPool
+) -> tuple[List[List[int]], List[List[int]]]:
     """辺ごとの SAT 変数を作成する補助関数"""
     horizontal: List[List[int]] = []
     for r in range(size.rows + 1):
@@ -30,6 +36,19 @@ def _create_variables(size: PuzzleSize, pool: IDPool) -> tuple[List[List[int]], 
             row.append(pool.id(f"v_{r}_{c}"))
         vertical.append(row)
     return horizontal, vertical
+
+
+def _even_parity_clauses(lits: List[int]) -> List[List[int]]:
+    """偶数個の真を強制する制約を生成"""
+    clauses: List[List[int]] = []
+    for bits in itertools.product([0, 1], repeat=len(lits)):
+        # 奇数個のときはその割り当てを禁止する
+        if sum(bits) % 2 == 1:
+            clause = []
+            for lit, bit in zip(lits, bits):
+                clause.append(-lit if bit else lit)
+            clauses.append(clause)
+    return clauses
 
 
 def is_unique(clues: List[List[int | None]], size: PuzzleSize) -> bool:
@@ -52,8 +71,17 @@ def is_unique(clues: List[List[int | None]], size: PuzzleSize) -> bool:
             if r > 0:
                 lits.append(vertical[r - 1][c])
             if len(lits) >= 2:
-                cnf.extend(CardEnc.atmost(lits, 2, vpool=pool, encoding="pairwise").clauses)
-                cnf.extend(CNF.from_xor(lits, rhs=False, vpool=pool).clauses)
+                # EncType.seqcounter を指定して 2 本以下に制限する
+                cnf.extend(
+                    CardEnc.atmost(
+                        lits,
+                        2,
+                        vpool=pool,
+                        encoding=EncType.seqcounter,
+                    ).clauses
+                )
+                # from_xor が利用できない環境のため、自前で偶数パリティを追加
+                cnf.extend(_even_parity_clauses(lits))
             elif len(lits) == 1:
                 cnf.append([-lits[0]])
 
@@ -69,7 +97,14 @@ def is_unique(clues: List[List[int | None]], size: PuzzleSize) -> bool:
                 vertical[r][c],
                 vertical[r][c + 1],
             ]
-            cnf.extend(CardEnc.equals(lits, clue, vpool=pool, encoding="seqcounter").clauses)
+            cnf.extend(
+                CardEnc.equals(
+                    lits,
+                    clue,
+                    vpool=pool,
+                    encoding=EncType.seqcounter,
+                ).clauses
+            )
 
     with Minisat22(bootstrap_with=cnf.clauses) as solver:
         if not solver.solve():
