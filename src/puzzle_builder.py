@@ -10,18 +10,18 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.solver import PuzzleSize, count_solutions
-    from src.constants import MAX_SOLVER_STEPS, _evaluate_difficulty
+    from src.constants import _evaluate_difficulty
     from src.validator import count_zero_adjacent
 else:
     try:
         # パッケージとして実行された場合の相対インポート
         from .solver import PuzzleSize, count_solutions
-        from .constants import MAX_SOLVER_STEPS, _evaluate_difficulty
+        from .constants import _evaluate_difficulty
         from .validator import count_zero_adjacent
     except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
         # スクリプトとして直接実行されたときは同じディレクトリからインポートする
         from solver import PuzzleSize, count_solutions
-        from constants import MAX_SOLVER_STEPS, _evaluate_difficulty
+        from constants import _evaluate_difficulty
         from validator import count_zero_adjacent
 
 Puzzle = Dict[str, Any]
@@ -29,7 +29,7 @@ Puzzle = Dict[str, Any]
 # JSON スキーマのバージョン
 SCHEMA_VERSION = "2.0"
 
-# MAX_SOLVER_STEPS と _evaluate_difficulty は constants モジュールに移動
+# _evaluate_difficulty は constants モジュールに定義されている
 
 
 def _calculate_hint_dispersion(clues: List[List[int | None]]) -> float:
@@ -129,7 +129,7 @@ def _reduce_clues(
     rng: random.Random,
     *,
     min_hint: int,
-    step_limit: int = MAX_SOLVER_STEPS,
+    step_limit: int | None = None,
 ) -> List[List[int | None]]:
     """ヒントをランダムに削減して一意性を保つ
 
@@ -140,6 +140,10 @@ def _reduce_clues(
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
     :param step_limit: ソルバーに渡すステップ上限
     """
+
+    if step_limit is None:
+        # 盤面サイズに比例した探索上限を設定する
+        step_limit = size.rows * size.cols * 25
 
     result: List[List[int | None]] = [[v for v in row] for row in clues]
     cells = [(r, c) for r in range(size.rows) for c in range(size.cols)]
@@ -171,7 +175,7 @@ def _optimize_clues(
     curve_ratio: float,
     solver_steps: int,
     iterations: int = 30,
-    step_limit: int = MAX_SOLVER_STEPS,
+    step_limit: int | None = None,
 ) -> List[List[int | None]]:
     """焼きなまし法でヒント配置を微調整する
 
@@ -181,6 +185,10 @@ def _optimize_clues(
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
     :param iterations: 試行回数。多いほど時間が掛かるが精度が上がる
     """
+
+    if step_limit is None:
+        # 動的に探索上限を決める
+        step_limit = size.rows * size.cols * 25
 
     best = [row[:] for row in clues]
     sols = count_solutions(best, size, limit=2, step_limit=step_limit)
