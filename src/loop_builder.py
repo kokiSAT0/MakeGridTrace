@@ -95,6 +95,8 @@ def _generate_random_loop(
 
     # 盤面の周囲長の2倍を下回らないようループの最小長を設定
     min_len = max(2 * (size.rows + size.cols), 4)
+    # 探索の上限長を周囲長の 1.5 倍にして無限ループを防ぐ
+    max_len = int(1.5 * (size.rows + size.cols) * 2)
 
     # 探索開始点をランダムに決め、現在の経路 ``route`` に追加
     start_vertex = (rng.randint(0, size.rows), rng.randint(0, size.cols))
@@ -106,6 +108,10 @@ def _generate_random_loop(
         # 最小長を満たした状態で開始点に戻れば成功
         if len(route) >= min_len and current == start_vertex and len(route) > 1:
             return True
+
+        # 設定した上限を超えたら失敗とする
+        if len(route) > max_len:
+            return False
 
         # 次に移動する候補方向をランダムに並べ替える
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
