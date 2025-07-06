@@ -14,7 +14,11 @@ from src import validator  # noqa: E402
 from src import solver  # noqa: E402
 from src import puzzle_builder  # noqa: E402
 from src import loop_builder  # noqa: E402
+
 from src import constants  # noqa: E402
+
+from src import sat_unique  # noqa: E402
+
 
 
 def test_generate_puzzle_structure(tmp_path: Path) -> None:
@@ -225,6 +229,32 @@ def test_generate_puzzle_timeout() -> None:
         generator.generate_puzzle(3, 3, timeout_s=0.0)
 
 
+def test_partial_reason_timeout() -> None:
+    size = solver.PuzzleSize(2, 2)
+    edges = loop_builder._create_empty_edges(size)
+    loop_builder._generate_random_loop(edges, size, random.Random(1))
+    clues = solver.calculate_clues(edges, size)
+    stats = solver.count_solutions(clues, size, limit=2, return_stats=True)[1]
+    puzzle = puzzle_builder._build_puzzle_dict(
+        size=size,
+        edges=edges,
+        clues=[[v for v in row] for row in clues],
+        clues_full=clues,
+        loop_length=loop_builder._count_edges(edges),
+        curve_ratio=loop_builder._calculate_curve_ratio(edges, size),
+        difficulty="easy",
+        solver_stats=stats,
+        symmetry=None,
+        theme=None,
+        generation_params={},
+        seed_hash="x",
+        partial=True,
+        reason="timeout",
+    )
+    assert puzzle["partial"] is True
+    assert puzzle["reason"] == "timeout"
+
+
 @pytest.mark.slow
 def test_generate_multiple_and_save(tmp_path: Path) -> None:
     puzzles = generator.generate_multiple_puzzles(3, 3, count_each=1, seed=5)
@@ -356,8 +386,7 @@ def test_generation_params_and_seedhash() -> None:
 def test_count_solutions_unique() -> None:
     puzzle = cast(Dict[str, Any], generator.generate_puzzle(3, 3, seed=9))
     size = solver.PuzzleSize(3, 3)
-    count = solver.count_solutions(puzzle["clues"], size, limit=2, step_limit=500000)
-    assert count == 1
+    assert sat_unique.is_unique(puzzle["clues"], size)
 
 
 def test_reduce_clues_zero_adjacent() -> None:

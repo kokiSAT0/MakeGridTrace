@@ -245,6 +245,7 @@ def _build_puzzle_dict(
     generation_params: Dict[str, Any],
     seed_hash: str,
     partial: bool = False,
+    reason: str | None = None,
 ) -> Puzzle:
     """パズル用の辞書オブジェクトを構築するヘルパー関数"""
 
@@ -281,6 +282,8 @@ def _build_puzzle_dict(
         "createdAt": datetime.now(UTC).date().isoformat(),
         "partial": partial,
     }
+    if partial and reason is not None:
+        puzzle["reason"] = reason
     return puzzle
 
 

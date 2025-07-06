@@ -34,6 +34,7 @@ try:
         _apply_vertical_symmetry,
         _apply_horizontal_symmetry,
     )
+    from .loop_wilson import generate_loop, _validate_edges
 except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
     from loop_builder import (
         _create_empty_edges,
@@ -45,6 +46,7 @@ except ImportError:  # pragma: no cover - スクリプト実行時のフォー�
         _apply_vertical_symmetry,
         _apply_horizontal_symmetry,
     )  # type: ignore
+    from loop_wilson import generate_loop, _validate_edges
 
 try:
     from .puzzle_io import save_puzzle
@@ -67,6 +69,11 @@ try:
     from .puzzle_types import Puzzle
 except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
     from puzzle_types import Puzzle
+
+try:
+    from . import sat_unique
+except ImportError:  # pragma: no cover - スクリプト実行時のフォールバック
+    import sat_unique
 
 logger = logging.getLogger(__name__)
 
@@ -107,131 +114,6 @@ RETRY_LIMIT = 20
 # 難易度推定ロジックは constants モジュールへ分離している
 
 
-def _vertex_degree(
-    edges: Dict[str, List[List[bool]]], size: PuzzleSize, r: int, c: int
-) -> int:
-    """頂点の接続数を求める簡易ヘルパー
-
-    グリッド上の一点(r, c)に接続している線の数を数えます。2 ならループ、
-    0 なら線がない状態です。初心者向けに説明すると、これはその点から
-    何本の線が出ているかを数える処理です。"""
-
-    deg = 0
-    if c < size.cols and edges["horizontal"][r][c]:
-        deg += 1
-    if c > 0 and edges["horizontal"][r][c - 1]:
-        deg += 1
-    if r < size.rows and edges["vertical"][r][c]:
-        deg += 1
-    if r > 0 and edges["vertical"][r - 1][c]:
-        deg += 1
-    return deg
-
-
-def _validate_edges(edges: Dict[str, List[List[bool]]], size: PuzzleSize) -> bool:
-    """辺情報が単一ループを構成するか確認"""
-
-    for r in range(size.rows + 1):
-        for c in range(size.cols + 1):
-            # 各頂点の接続本数を調べる
-            deg = _vertex_degree(edges, size, r, c)
-            # 0 または 2 以外なら分岐しているので NG
-            if deg not in (0, 2):
-                return False
-    return True
-
-
-def _create_loop(
-    size: PuzzleSize,
-    rng: random.Random,
-    *,
-    symmetry: Optional[str],
-    theme: Optional[str],
-) -> tuple[Dict[str, List[List[bool]]], int, float]:
-    """ループを生成し長さと曲率を返す
-
-    ``theme`` が ``"border"`` の場合は外周のみを使った単純なループ、
-    ``"pattern"`` の場合は小さなループパターンを敷き詰め、
-    ``"maze"`` の場合はランダム生成から曲がりの多いものを選び、
-    ``"spiral"`` の場合は曲率比率が最も高い候補を採用する。
-    指定がない場合は完全ランダム生成となる。
-    """
-
-    # 対称性のあるループは失敗しやすいため複数回試行する
-    for _ in range(5):
-        edges = _create_empty_edges(size)
-        if theme == "border":
-            for c in range(size.cols):
-                edges["horizontal"][0][c] = True
-                edges["horizontal"][size.rows][c] = True
-            for r in range(size.rows):
-                edges["vertical"][r][0] = True
-                edges["vertical"][r][size.cols] = True
-        elif theme == "pattern":
-            edges = combine_patterns(size, rng)
-        elif theme == "maze":
-            # ランダムループを複数回生成し、より長く曲がりの多いものを採用する
-            best_edges = None
-            best_score = -1.0
-            for _ in range(10):
-                cand = _create_empty_edges(size)
-                _generate_random_loop(cand, size, rng)
-                if not _validate_edges(cand, size):
-                    continue
-                length = _count_edges(cand)
-                curve = _calculate_curve_ratio(cand, size)
-                score = length + curve * 100.0
-                if score > best_score:
-                    best_edges = cand
-                    best_score = score
-            if best_edges is not None:
-                edges = best_edges
-            else:
-                _generate_random_loop(edges, size, rng)
-        elif theme == "spiral":
-            # 曲率比率が最も高いループを採用する
-            best_edges = None
-            best_curve = -1.0
-            for _ in range(10):
-                cand = _create_empty_edges(size)
-                _generate_random_loop(cand, size, rng)
-                if not _validate_edges(cand, size):
-                    continue
-                curve = _calculate_curve_ratio(cand, size)
-                if curve > best_curve:
-                    best_edges = cand
-                    best_curve = curve
-            if best_edges is not None:
-                edges = best_edges
-            else:
-                _generate_random_loop(edges, size, rng)
-        else:
-            _generate_random_loop(edges, size, rng)
-
-        if symmetry == "rotational":
-            _apply_rotational_symmetry(edges, size)
-        elif symmetry == "vertical":
-            _apply_vertical_symmetry(edges, size)
-        elif symmetry == "horizontal":
-            _apply_horizontal_symmetry(edges, size)
-
-        if _validate_edges(edges, size):
-            loop_length = _count_edges(edges)
-            curve_ratio = _calculate_curve_ratio(edges, size)
-            return edges, loop_length, curve_ratio
-
-    # すべて失敗した場合は外周だけの単純なループを返す
-    edges = _create_empty_edges(size)
-    for c in range(size.cols):
-        edges["horizontal"][0][c] = True
-        edges["horizontal"][size.rows][c] = True
-    for r in range(size.rows):
-        edges["vertical"][r][0] = True
-        edges["vertical"][r][size.cols] = True
-
-    loop_length = _count_edges(edges)
-    curve_ratio = _calculate_curve_ratio(edges, size)
-    return edges, loop_length, curve_ratio
 
 
 def _generate_loop_with_symmetry(
@@ -247,7 +129,7 @@ def _generate_loop_with_symmetry(
     """
 
     start = time.perf_counter()
-    edges, loop_length, curve_ratio = _create_loop(
+    edges, loop_length, curve_ratio = generate_loop(
         size, rng, symmetry=symmetry, theme=theme
     )
     logger.info("ループ生成完了: %.3f 秒", time.perf_counter() - start)
@@ -278,19 +160,22 @@ def _compute_clues_and_optimize(
         clues_all, size, rng, min_hint=min_hint, step_limit=solver_step_limit
     )
 
-    base_solutions, base_stats = cast(
-        tuple[int, Dict[str, int]],
+    # PySAT で一意解か確認
+    if not sat_unique.is_unique(clues, size):
+        logger.warning("解が一意でないため再試行します")
+        return None
+
+    # 解析統計は既存ソルバーで取得する
+    base_stats = cast(
+        Dict[str, int],
         count_solutions(
             clues,
             size,
             limit=2,
             return_stats=True,
             step_limit=solver_step_limit,
-        ),
+        )[1],
     )
-    if base_solutions != 1:
-        logger.warning("解が一意でないため再試行します")
-        return None
 
     clues = _optimize_clues(
         clues,
@@ -315,7 +200,7 @@ def _compute_clues_and_optimize(
             step_limit=solver_step_limit,
         ),
     )
-    if solutions != 1:
+    if not sat_unique.is_unique(clues, size):
         logger.warning("解が一意でないためヒントを再計算します")
         clues = cast(List[List[int | None]], [row[:] for row in clues_all])
         solutions, solver_stats = cast(
@@ -328,7 +213,7 @@ def _compute_clues_and_optimize(
                 step_limit=solver_step_limit,
             ),
         )
-        if solutions != 1:
+        if not sat_unique.is_unique(clues, size):
             logger.warning("再試行します")
             return None
 
@@ -404,6 +289,7 @@ def generate_puzzle(
         if timeout_s is not None and time.perf_counter() - start_time > timeout_s:
             if best_puzzle is not None:
                 best_puzzle["partial"] = True
+                best_puzzle["reason"] = "timeout"
                 return best_puzzle
             raise TimeoutError("generation timed out")
         edges, loop_length, curve_ratio = _generate_loop_with_symmetry(
@@ -807,32 +693,37 @@ if __name__ == "__main__":
         default=None,
         help="ソルバーの最大ステップ数 (未指定なら自動計算)",
     )
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="プロファイル結果を profile.prof に保存する",
+    )
     args = parser.parse_args()
 
+    func_kwargs = {
+        "difficulty": args.difficulty,
+        "seed": args.seed,
+        "symmetry": args.symmetry,
+        "theme": args.theme,
+        "solver_step_limit": args.step_limit,
+        "timeout_s": args.timeout,
+    }
+
     if args.parallel > 1:
-        pzl_obj = generate_puzzle_parallel(
-            args.rows,
-            args.cols,
-            difficulty=args.difficulty,
-            seed=args.seed,
-            symmetry=args.symmetry,
-            theme=args.theme,
-            solver_step_limit=args.step_limit,
-            timeout_s=args.timeout,
-            jobs=args.parallel,
-            worker_log_level=logging.WARNING,
-        )
+        func = generate_puzzle_parallel
+        func_kwargs.update({"jobs": args.parallel, "worker_log_level": logging.WARNING})
     else:
-        pzl_obj = generate_puzzle(
-            args.rows,
-            args.cols,
-            difficulty=args.difficulty,
-            seed=args.seed,
-            symmetry=args.symmetry,
-            theme=args.theme,
-            solver_step_limit=args.step_limit,
-            timeout_s=args.timeout,
-        )
+        func = generate_puzzle
+
+    if args.profile:
+        # cProfile でプロファイルを取得し profile.prof に書き出す
+        import cProfile
+
+        profiler = cProfile.Profile()
+        pzl_obj = profiler.runcall(func, args.rows, args.cols, **func_kwargs)
+        profiler.dump_stats("profile.prof")
+    else:
+        pzl_obj = func(args.rows, args.cols, **func_kwargs)
     pzl = cast(Puzzle, pzl_obj)
     path = save_puzzle(pzl)
     print(f"{path} を作成しました")
