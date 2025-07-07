@@ -175,7 +175,13 @@ def test_validate_puzzle_fail() -> None:
 def test_zero_adjacent_allowed() -> None:
     size = solver.PuzzleSize(4, 4)
     edges = loop_builder._create_empty_edges(size)
-    loop_builder._generate_random_loop(edges, size, random.Random(1))
+    # 外周だけを通る単純なループを作成
+    for c in range(size.cols):
+        edges["horizontal"][0][c] = True
+        edges["horizontal"][size.rows][c] = True
+    for r in range(size.rows):
+        edges["vertical"][r][0] = True
+        edges["vertical"][r][size.cols] = True
     clues = solver.calculate_clues(edges, size)
     stats = solver.count_solutions(clues, size, limit=2, return_stats=True)[1]
     puzzle = puzzle_builder._build_puzzle_dict(
@@ -210,19 +216,18 @@ def test_generator_zero_adjacent_soft() -> None:
     assert count >= 0
 
 
-def test_validate_puzzle_zero_only_row_fail() -> None:
+def test_validate_puzzle_missing_border_fail() -> None:
     size = solver.PuzzleSize(3, 3)
     edges = loop_builder._create_empty_edges(size)
-    # 下側中央のセルだけを囲む小さなループを作成
-    edges["horizontal"][2][1] = True
-    edges["horizontal"][2][2] = True
-    edges["horizontal"][3][1] = True
-    edges["horizontal"][3][2] = True
-    edges["vertical"][2][1] = True
-    edges["vertical"][2][2] = True
+    # 右辺だけ線を引かないループを作成
+    for c in range(2):
+        edges["horizontal"][0][c] = True
+        edges["horizontal"][size.rows][c] = True
+    for r in range(size.rows):
+        edges["vertical"][r][0] = True
+        edges["vertical"][r][2] = True
 
     clues_full = solver.calculate_clues(edges, size)
-    assert clues_full[0] == [0, 0, 0]
     stats = solver.count_solutions(clues_full, size, limit=2, return_stats=True)[1]
     puzzle = puzzle_builder._build_puzzle_dict(
         size=size,

@@ -153,6 +153,16 @@ def validate_puzzle(puzzle: Puzzle) -> None:
     if edge_count < 2 * (size.rows + size.cols):
         raise ValueError("ループ長がハード制約を満たしていません")
 
+    # 外周の各辺に 1 本も線が無い場合は無効とする
+    if not any(horizontal[0]):
+        raise ValueError("上辺に線がありません")
+    if not any(horizontal[size.rows]):
+        raise ValueError("下辺に線がありません")
+    if not any(vertical[r][0] for r in range(size.rows)):
+        raise ValueError("左辺に線がありません")
+    if not any(vertical[r][size.cols] for r in range(size.rows)):
+        raise ValueError("右辺に線がありません")
+
     clues_full = puzzle.get("cluesFull")
     if not isinstance(clues_full, list):
         raise ValueError("cluesFull フィールドが存在しません")
@@ -172,9 +182,6 @@ def validate_puzzle(puzzle: Puzzle) -> None:
     curve_ratio = _calculate_curve_ratio(edges, size)
     if curve_ratio < 0.10:
         raise ValueError("線カーブ比率がハード制約を満たしていません")
-
-    if _has_zero_only_line(clues_full):
-        raise ValueError("行または列に 0 だけのものがあります")
 
 
 __all__ = [
