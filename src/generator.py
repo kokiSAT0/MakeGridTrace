@@ -515,36 +515,43 @@ def generate_multiple_puzzles(
             base_seed = random.randint(0, 2**32 - 1)
         else:
             base_seed = seed
-        futures = []
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=jobs,
-            initializer=setup_logging,
-            initargs=(worker_log_level,),
-        ) as executor:
-            for difficulty in sorted(ALLOWED_DIFFICULTIES):
-                for _ in range(count_each):
-                    puzzle_seed = base_seed + seed_offset
-                    seed_offset += 1
-                    futures.append(
-                        executor.submit(
+
+        counts = {d: 0 for d in ALLOWED_DIFFICULTIES}
+        retry_round = 0
+        while any(c < count_each for c in counts.values()):
+            if retry_round > RETRY_LIMIT:
+                raise ValueError("並列生成に失敗しました")
+            retry_round += 1
+
+            futures: dict[concurrent.futures.Future[Puzzle], str] = {}
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=jobs,
+                initializer=setup_logging,
+                initargs=(worker_log_level,),
+            ) as executor:
+                for diff in sorted(ALLOWED_DIFFICULTIES):
+                    remain = count_each - counts[diff]
+                    for _ in range(remain):
+                        puzzle_seed = base_seed + seed_offset
+                        seed_offset += 1
+                        future = executor.submit(
                             generate_puzzle,
                             rows,
                             cols,
-                            difficulty=difficulty,
+                            difficulty=diff,
                             seed=puzzle_seed,
                         )
-                    )
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    puzzle_obj = future.result()
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("並列生成失敗: %s", exc)
-                    continue
-                puzzles.append(cast(Puzzle, puzzle_obj))
+                        futures[future] = diff
 
-        expected = count_each * len(ALLOWED_DIFFICULTIES)
-        if len(puzzles) < expected:
-            raise ValueError("並列生成に失敗しました")
+                for future in concurrent.futures.as_completed(futures):
+                    diff = futures[future]
+                    try:
+                        puzzle_obj = future.result()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("並列生成失敗: %s", exc)
+                        continue
+                    puzzles.append(cast(Puzzle, puzzle_obj))
+                    counts[diff] += 1
 
     logger.info("複数盤面生成終了: %.3f 秒", time.perf_counter() - start_time)
     return puzzles
