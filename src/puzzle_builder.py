@@ -236,6 +236,7 @@ def _reduce_clues(
     rng: random.Random,
     *,
     min_hint: int,
+    max_hint: int,
     step_limit: int | None = None,
 ) -> List[List[int | None]]:
     """ヒントを依存度の低い順に削減して一意性を保つ
@@ -248,6 +249,7 @@ def _reduce_clues(
     少ないほど望ましいというソフト制約として扱うためチェックしない。
 
     :param rng: 乱数生成に利用する ``random.Random`` インスタンス
+    :param max_hint: ヒント数の上限値。これ以下になると削除を終了する
     :param step_limit: ソルバーに渡すステップ上限
     """
 
@@ -264,6 +266,11 @@ def _reduce_clues(
     cells.sort()  # coverage が小さい順に並ぶ
 
     for _, r, c in cells:
+        # 既に上限以下なら削除を終了する
+        current_count = sum(1 for row in result for v in row if v is not None)
+        if current_count <= max_hint:
+            break
+
         original = result[r][c]
         result[r][c] = None
         hint_count = sum(1 for row in result for v in row if v is not None)
@@ -275,6 +282,10 @@ def _reduce_clues(
         if not sat_unique.is_unique(result, size):
             result[r][c] = original
             continue
+
+        # 上限に達したら終了する
+        if hint_count <= max_hint:
+            break
 
     return result
 
