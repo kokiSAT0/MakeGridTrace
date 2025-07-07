@@ -420,7 +420,13 @@ def test_reduce_clues_zero_adjacent() -> None:
     loop_builder._generate_random_loop(edges, size, rng_loop)
     clues = solver.calculate_clues(edges, size)
     before = validator.count_zero_adjacent(clues)
-    reduced = puzzle_builder._reduce_clues(clues, size, random.Random(1), min_hint=1)
+    reduced = puzzle_builder._reduce_clues(
+        clues,
+        size,
+        random.Random(1),
+        min_hint=1,
+        max_hint=size.rows * size.cols,
+    )
     after = validator.count_zero_adjacent(
         [[v if v is not None else -1 for v in row] for row in reduced]
     )
@@ -433,7 +439,13 @@ def test_optimize_clues_improves_qs() -> None:
     edges = loop_builder._create_empty_edges(size)
     loop_builder._generate_random_loop(edges, size, rng_loop)
     clues_full = solver.calculate_clues(edges, size)
-    clues = puzzle_builder._reduce_clues(clues_full, size, random.Random(3), min_hint=1)
+    clues = puzzle_builder._reduce_clues(
+        clues_full,
+        size,
+        random.Random(3),
+        min_hint=1,
+        max_hint=size.rows * size.cols,
+    )
     sols, stats = solver.count_solutions(clues, size, limit=2, return_stats=True)
     curve_ratio = loop_builder._calculate_curve_ratio(edges, size)
     loop_length = loop_builder._count_edges(edges)
@@ -466,3 +478,17 @@ def test_generate_puzzle_step_limit() -> None:
         generator.generate_puzzle(3, 3, seed=5, solver_step_limit=1000),
     )
     assert puzzle["generationParams"]["solverStepLimit"] == 1000
+
+
+@pytest.mark.slow
+def test_max_hint_ratio() -> None:
+    """10x10 以上でヒント数上限を満たすか確認"""
+    size = solver.PuzzleSize(10, 10)
+    for i, diff in enumerate(sorted(generator.ALLOWED_DIFFICULTIES)):
+        puzzle = cast(
+            Dict[str, Any],
+            generator.generate_puzzle(10, 10, difficulty=diff, seed=100 + i),
+        )
+        hint_count = sum(1 for row in puzzle["clues"] for v in row if v is not None)
+        max_hint = int(size.rows * size.cols * generator.MAX_HINT_RATIO[diff])
+        assert hint_count <= max_hint

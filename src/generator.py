@@ -86,6 +86,14 @@ MIN_HINT_RATIO = {
     "expert": 0.1,
 }
 
+# difficulty ごとの最大ヒント比率。盤面セル数に掛けた上限ヒント数を表す
+MAX_HINT_RATIO = {
+    "easy": 0.38,
+    "normal": 0.30,
+    "hard": 0.22,
+    "expert": 0.18,
+}
+
 # 生成失敗時に何回まで再試行するか
 # 5 回では盤面サイズによっては失敗することがあったため
 # 少し余裕を持たせる
@@ -154,13 +162,17 @@ def _compute_clues_and_optimize(
     rng: random.Random,
     *,
     difficulty: str,
+    max_hint: int,
     solver_step_limit: int,
     loop_length: int,
     curve_ratio: float,
 ) -> Optional[tuple[List[List[int | None]], List[List[int]], Dict[str, int]]]:
     """ヒント計算と最適化をまとめて行う補助関数
 
-    解が一意にならない場合は ``None`` を返して再試行を促す。"""
+    解が一意にならない場合は ``None`` を返して再試行を促す。
+
+    :param max_hint: ヒント数の上限
+    """
 
     start = time.perf_counter()
     clues_all = calculate_clues(edges, size)
@@ -169,7 +181,12 @@ def _compute_clues_and_optimize(
     min_hint = max(1, int(size.rows * size.cols * MIN_HINT_RATIO.get(difficulty, 0.1)))
 
     clues = _reduce_clues(
-        clues_all, size, rng, min_hint=min_hint, step_limit=solver_step_limit
+        clues_all,
+        size,
+        rng,
+        min_hint=min_hint,
+        max_hint=max_hint,
+        step_limit=solver_step_limit,
     )
 
     # PySAT で一意解か確認
@@ -300,6 +317,9 @@ def generate_puzzle(
 
     size = PuzzleSize(rows=rows, cols=cols)
 
+    # ヒント数の上限を難易度に応じて計算
+    max_hint = int(size.rows * size.cols * MAX_HINT_RATIO.get(difficulty, 1.0))
+
     last_edges: Dict[str, List[List[bool]]] | None = None
     best_puzzle: Puzzle | None = None
     # 対称性を指定すると成功率が下がるため試行回数を増やす
@@ -324,6 +344,7 @@ def generate_puzzle(
             size,
             rng,
             difficulty=difficulty,
+            max_hint=max_hint,
             solver_step_limit=solver_step_limit,
             loop_length=loop_length,
             curve_ratio=curve_ratio,
